@@ -186,73 +186,84 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                     </div>
 
                     {/* Expense List */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {sortedExpenses.map(expense => (
-                            <div key={expense.id} className="card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '4px solid hsl(var(--color-primary))' }}>
+                    {sortedExpenses.length === 0 && searchQuery ? (
+                        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+                            <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                                No expenses found
+                            </p>
+                            <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.9rem' }}>
+                                Try adjusting your search terms
+                            </p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {sortedExpenses.map(expense => (
+                                <div key={expense.id} className="card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '4px solid hsl(var(--color-primary))' }}>
 
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{expense.description}</div>
-                                    <div style={{ fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))' }}>{formatDateTime(expense.date)}</div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{expense.description}</div>
+                                        <div style={{ fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))' }}>{formatDateTime(expense.date)}</div>
 
-                                    <div style={{ marginTop: '0.25rem', fontSize: '0.9rem' }}>
-                                        <span>
-                                            {expense.payers.length === 1
-                                                ? `Paid by ${getUserName(expense.payers[0].userId)}`
-                                                : `Paid by ${expense.payers.length} people`}
-                                        </span>
-                                        <span style={{ margin: '0 0.5rem', color: 'hsl(var(--color-text-muted))' }}>•</span>
-                                        <span>
-                                            Split among {expense.splits.length} {expense.splits.length === 1 ? 'person' : 'people'}
-                                        </span>
+                                        <div style={{ marginTop: '0.25rem', fontSize: '0.9rem' }}>
+                                            <span>
+                                                {expense.payers.length === 1
+                                                    ? `Paid by ${getUserName(expense.payers[0].userId)}`
+                                                    : `Paid by ${expense.payers.length} people`}
+                                            </span>
+                                            <span style={{ margin: '0 0.5rem', color: 'hsl(var(--color-text-muted))' }}>•</span>
+                                            <span>
+                                                Split among {expense.splits.length} {expense.splits.length === 1 ? 'person' : 'people'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{ fontWeight: '800', fontSize: '1.25rem' }}>
+                                            {formatMoney(expense.amount)}
+                                        </div>
+                                        <button
+                                            onClick={() => onViewTransaction(expense)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: 'hsl(var(--color-accent))',
+                                                cursor: 'pointer',
+                                                padding: '0.5rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                borderRadius: 'var(--radius-sm)',
+                                                transition: 'background var(--transition-fast)'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                            title="View details"
+                                        >
+                                            <Eye size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleEdit(expense)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: 'hsl(var(--color-primary))',
+                                                cursor: 'pointer',
+                                                padding: '0.5rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                borderRadius: 'var(--radius-sm)',
+                                                transition: 'background var(--transition-fast)'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                            title="Edit expense"
+                                        >
+                                            <Edit2 size={18} />
+                                        </button>
                                     </div>
                                 </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ fontWeight: '800', fontSize: '1.25rem' }}>
-                                        {formatMoney(expense.amount)}
-                                    </div>
-                                    <button
-                                        onClick={() => onViewTransaction(expense)}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: 'hsl(var(--color-accent))',
-                                            cursor: 'pointer',
-                                            padding: '0.5rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            borderRadius: 'var(--radius-sm)',
-                                            transition: 'background var(--transition-fast)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                        title="View details"
-                                    >
-                                        <Eye size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleEdit(expense)}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: 'hsl(var(--color-primary))',
-                                            cursor: 'pointer',
-                                            padding: '0.5rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            borderRadius: 'var(--radius-sm)',
-                                            transition: 'background var(--transition-fast)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                        title="Edit expense"
-                                    >
-                                        <Edit2 size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </>
             )}
         </div>

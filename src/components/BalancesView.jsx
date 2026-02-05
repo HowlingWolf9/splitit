@@ -169,7 +169,7 @@ export default function BalancesView() {
                     style={{
                         flex: 1,
                         padding: '0.75rem 1rem',
-                        background: settleMode === 'simplified' ? 'hsl(var(--color-primary))' : 'transparent',
+                        background: settleMode === 'simplified' ? 'hsl(var(--color-accent))' : 'transparent',
                         color: settleMode === 'simplified' ? 'white' : 'hsl(var(--color-text-main))',
                         border: 'none',
                         borderRadius: 'var(--radius-sm)',
@@ -191,7 +191,7 @@ export default function BalancesView() {
                     style={{
                         flex: 1,
                         padding: '0.75rem 1rem',
-                        background: settleMode === 'direct' ? 'hsl(var(--color-primary))' : 'transparent',
+                        background: settleMode === 'direct' ? 'hsl(var(--color-accent))' : 'transparent',
                         color: settleMode === 'direct' ? 'white' : 'hsl(var(--color-text-main))',
                         border: 'none',
                         borderRadius: 'var(--radius-sm)',

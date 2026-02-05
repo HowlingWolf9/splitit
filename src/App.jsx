@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ExpenseProvider } from './store/ExpenseContext';
-import Dashboard from './components/Dashboard';
-import UserList from './components/UserList';
+import DashboardSummary from './components/DashboardSummary';
 import TransactionList from './components/TransactionList';
 import Settings from './components/Settings';
 import ExpenseListView from './components/ExpenseListView';
@@ -91,10 +90,7 @@ function ExpenseApp() {
 
         {activeTab === 'DASHBOARD' && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-              <Dashboard />
-              <UserList />
-            </div>
+            <DashboardSummary />
             <div className="card">
               <h2 style={{ marginBottom: '1rem' }}>Recent History</h2>
               <TransactionList
@@ -139,45 +135,65 @@ function ExpenseApp() {
 
         {/* View Transaction Modal */}
         {viewingTransaction && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}>
-            <ExpenseDetailView
-              expense={viewingTransaction}
-              onClose={() => setViewingTransaction(null)}
-            />
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '1rem',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setViewingTransaction(null);
+              }
+            }}
+          >
+            <div style={{ marginTop: '2rem', marginBottom: '2rem' }}>
+              <ExpenseDetailView
+                expense={viewingTransaction}
+                onClose={() => setViewingTransaction(null)}
+              />
+            </div>
           </div>
         )}
 
         {/* View Settlement Modal */}
         {viewingSettlement && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}>
-            <SettlementDetailView
-              settlement={viewingSettlement}
-              onClose={() => setViewingSettlement(null)}
-            />
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '1rem',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setViewingSettlement(null);
+              }
+            }}
+          >
+            <div style={{ marginTop: '2rem', marginBottom: '2rem' }}>
+              <SettlementDetailView
+                settlement={viewingSettlement}
+                onClose={() => setViewingSettlement(null)}
+              />
+            </div>
           </div>
         )}
 

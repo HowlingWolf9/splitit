@@ -81,7 +81,13 @@ export default function ExpenseDetailView({ expense, onClose }) {
                     <User size={18} />
                     Who Paid
                 </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    maxHeight: '300px',
+                    overflowY: 'auto'
+                }}>
                     {expense.payers.map((payer, idx) => (
                         <div
                             key={idx}
@@ -113,7 +119,13 @@ export default function ExpenseDetailView({ expense, onClose }) {
                     <Split size={18} />
                     Split Among
                 </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    maxHeight: '300px',
+                    overflowY: 'auto'
+                }}>
                     {expense.splits.map((split, idx) => (
                         <div
                             key={idx}
@@ -139,11 +151,6 @@ export default function ExpenseDetailView({ expense, onClose }) {
                 <button
                     className="btn"
                     onClick={onClose}
-                    style={{
-                        background: 'hsl(var(--color-primary))',
-                        color: 'white',
-                        padding: '0.75rem 2rem'
-                    }}
                 >
                     Close
                 </button>

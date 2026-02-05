@@ -9,9 +9,10 @@ export default function SettlementDetailView({ settlement, onClose }) {
     const toUser = state.users.find(u => u.id === settlement.to);
 
     const formatCurrency = (amount) => {
-        const currencyInfo = state.currencies || { [state.currency]: { symbol: '$' } };
-        const symbol = currencyInfo[state.currency]?.symbol || '$';
-        return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: state.currency
+        }).format(amount);
     };
 
     const formatDate = (dateStr) => {

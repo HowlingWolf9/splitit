@@ -28,7 +28,7 @@ export default function TransactionList({ onEditTransaction, onViewTransaction, 
     };
 
     if (transactions.length === 0) {
-        return <div style={{ color: '#888', fontStyle: 'italic', padding: '1rem' }}>No expenses recorded yet.</div>;
+        return <div style={{ color: 'hsl(var(--color-text-muted))', fontStyle: 'italic', padding: '1rem' }}>No expenses recorded yet.</div>;
     }
 
     const getUserName = (id) => {

@@ -55,6 +55,15 @@ a {
     border-radius: var(--radius-md);
     font-weight: 600;
     transition: all var(--transition-fast);
+    background-color: hsl(var(--color-accent));
+    color: white;
+    border: none;
+}
+
+.btn:hover {
+    background-color: hsl(var(--color-accent-hover));
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .btn-primary {
@@ -65,6 +74,19 @@ a {
 .btn-primary:hover {
     background-color: hsl(var(--color-primary-light));
     transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background-color: hsl(var(--color-surface));
+    color: hsl(var(--color-text-main));
+    border: 2px solid hsl(var(--color-accent));
+}
+
+.btn-secondary:hover {
+    background-color: hsl(var(--color-accent) / 0.1);
+    border-color: hsl(var(--color-accent-hover));
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .input {
