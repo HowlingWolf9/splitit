@@ -1,0 +1,190 @@
+@import url('./variables.css');
+
+/* Modern Reset */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-family-sans);
+    background-color: hsl(var(--color-bg));
+    color: hsl(var(--color-text-main));
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+button {
+    cursor: pointer;
+    font: inherit;
+    border: none;
+    background: none;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Utilities */
+.container {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--spacing-md);
+}
+
+.card {
+    background: hsl(var(--color-surface));
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--spacing-lg);
+    border: 1px solid hsl(var(--color-text-muted) / 0.1);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: 0.75em 1.5em;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    transition: all var(--transition-fast);
+}
+
+.btn-primary {
+    background-color: hsl(var(--color-primary));
+    color: hsl(var(--color-text-inverted));
+}
+
+.btn-primary:hover {
+    background-color: hsl(var(--color-primary-light));
+    transform: translateY(-1px);
+}
+
+.input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid hsl(var(--color-text-muted) / 0.2);
+    background: hsl(var(--color-surface-dim));
+    /* Updated to use dim surface */
+    color: hsl(var(--color-text-main));
+    font-size: var(--font-size-base);
+    transition: border-color var(--transition-fast);
+}
+
+.input:focus {
+    outline: none;
+    border-color: hsl(var(--color-accent));
+    box-shadow: 0 0 0 3px hsl(var(--color-accent) / 0.2);
+}
+
+/* NAVIGATION BUTTONS */
+.btn-nav {
+    background-color: hsl(var(--color-surface));
+    color: hsl(var(--color-text-main));
+    border: 1px solid hsl(var(--color-text-muted) / 0.2);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-nav.active {
+    background-color: hsl(var(--color-primary));
+    color: hsl(var(--color-text-inverted));
+    border-color: hsl(var(--color-primary));
+}
+
+/* Dark mode specific overrides to guarantee contrast if vars fail */
+@media (prefers-color-scheme: dark) {
+    .btn-nav {
+        background-color: hsl(217 33% 17%);
+        /* Explicit Dark Surface */
+        color: hsl(210 40% 98%);
+        /* Explicit White Text */
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-nav.active {
+        background-color: hsl(210 40% 98%);
+        /* Explicit White Active BG */
+        color: hsl(222 47% 11%);
+        /* Explicit Dark Active Text */
+    }
+}
+
+/* Print Styles for PDF Export */
+@media print {
+
+    /* Hide elements that shouldn't appear in print */
+    .print-hide,
+    button.print-hide,
+    nav,
+    .navigation,
+    header {
+        display: none !important;
+    }
+
+    /* Reset page margins and colors */
+    @page {
+        margin: 1cm;
+        size: A4;
+    }
+
+    body {
+        background: white !important;
+        color: black !important;
+        font-size: 12pt;
+    }
+
+    /* Ensure cards print nicely */
+    .card {
+        background: white !important;
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+    }
+
+    /* Optimize text for print */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        color: black !important;
+        page-break-after: avoid;
+    }
+
+    /* Prevent page breaks inside important elements */
+    .settlement-item,
+    .balance-card {
+        page-break-inside: avoid;
+    }
+
+    /* Add page title */
+    .card::before {
+        content: "Balance Sheet";
+        display: block;
+        font-size: 18pt;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        color: black;
+    }
+
+    /* Add timestamp */
+    .card::after {
+        content: "Generated: " attr(data-print-date);
+        display: block;
+        font-size: 9pt;
+        color: #666;
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid #ddd;
+    }
+}

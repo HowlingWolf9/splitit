@@ -1,0 +1,75 @@
+:root {
+  /* Premium Color Palette */
+  --color-primary: 220 50% 10%;
+  /* Deep Navy Blue */
+  --color-primary-light: 220 40% 20%;
+  /* Lighter Navy */
+  --color-accent: 160 84% 39%;
+  /* Fresh Teal */
+  --color-accent-hover: 160 84% 30%;
+  --color-danger: 0 84% 60%;
+  --color-warning: 35 90% 60%;
+  --color-success: 145 65% 45%;
+
+  /* Backgrounds */
+  --color-bg: 220 30% 98%;
+  /* Very light cool gray */
+  --color-surface: 0 0% 100%;
+  /* White */
+  --color-surface-dim: 220 20% 96%;
+  /* Slightly darker surface for inputs/sections */
+
+  /* Text */
+  --color-text-main: 220 40% 15%;
+  --color-text-muted: 220 20% 45%;
+  --color-text-inverted: 0 0% 100%;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2.5rem;
+
+  /* Typography */
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.75rem;
+  --font-size-xxl: 2.5rem;
+
+  /* Radius & Shadows */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: 222 47% 11%;
+    /* Dark Blue BG */
+    --color-surface: 217 33% 17%;
+    /* Lighter Blue Surface */
+    --color-surface-dim: 215 28% 14%;
+    /* Darker surface for inputs */
+
+    --color-primary: 210 40% 98%;
+    /* White/Light Blue for primary text in dark mode */
+    --color-primary-light: 210 40% 90%;
+
+    --color-text-main: 210 40% 98%;
+    --color-text-muted: 215 20% 70%;
+    /* Lighter muted text */
+    --color-text-inverted: 222 47% 11%;
+  }
+}
