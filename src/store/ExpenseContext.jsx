@@ -1,4 +1,4 @@
-import React, { createContext, useReducer, useContext, useEffect } from 'react';
+import React, { createContext, useReducer, useContext, useEffect, useMemo } from 'react';
 
 // CURRENCIES
 const CURRENCIES = {
@@ -44,18 +44,33 @@ function expenseReducer(state, action) {
                 users: state.users.filter(u => u.id !== action.payload),
                 // Note: We keep transactions as historical record
             };
-        case ADD_TRANSACTION:
+        case ADD_TRANSACTION: {
+            const now = new Date().toISOString();
+            const newTx = {
+                ...action.payload,
+                createdAt: action.payload.createdAt || now,
+                updatedAt: action.payload.updatedAt || now
+            };
             return {
                 ...state,
-                transactions: [action.payload, ...state.transactions]
+                transactions: [newTx, ...state.transactions]
             };
-        case UPDATE_TRANSACTION:
+        }
+        case UPDATE_TRANSACTION: {
+            const now = new Date().toISOString();
             return {
                 ...state,
                 transactions: state.transactions.map(t =>
-                    t.id === action.payload.id ? action.payload : t
+                    t.id === action.payload.id 
+                        ? {
+                            ...action.payload,
+                            createdAt: t.createdAt || now,
+                            updatedAt: now
+                        } 
+                        : t
                 )
             };
+        }
         case DELETE_TRANSACTION:
             return {
                 ...state,
@@ -82,7 +97,7 @@ const ExpenseContext = createContext({
     updateExpense: () => { },
     deleteTransaction: () => { },
     addSettlement: () => { },
-    getBalances: () => ({}),
+    balances: {},
     setCurrency: () => { },
     exportData: () => { },
     importData: () => { },
@@ -125,7 +140,7 @@ export function ExpenseProvider({ children }) {
     }, [state]);
 
     // Helper: Safe ID Generator
-    const generateId = () => Math.random().toString(36).substr(2, 9);
+    const generateId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9));
 
     const addUser = (name) => {
         dispatch({
@@ -218,7 +233,7 @@ export function ExpenseProvider({ children }) {
     };
 
     // Derived State: Balances
-    const getBalances = () => {
+    const balances = useMemo(() => {
         const balances = {};
         // Init all users to 0
         state.users.forEach(u => balances[u.id] = 0);
@@ -247,7 +262,7 @@ export function ExpenseProvider({ children }) {
         });
 
         return balances;
-    };
+    }, [state.users, state.transactions]);
 
     // Export Data
     const exportData = () => {
@@ -307,7 +322,7 @@ export function ExpenseProvider({ children }) {
             deleteTransaction,
             addSettlement,
             updateSettlement,
-            getBalances,
+            balances,
             setCurrency,
             exportData,
             importData,
@@ -319,6 +334,7 @@ export function ExpenseProvider({ children }) {
 }
 
 // HOOK
+// eslint-disable-next-line react-refresh/only-export-components
 export function useExpenses() {
     const context = useContext(ExpenseContext);
     if (!context) {

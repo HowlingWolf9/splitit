@@ -22,7 +22,7 @@ export default function Settings() {
             URL.revokeObjectURL(url);
 
             showMessage('success', 'Data exported successfully!');
-        } catch (error) {
+        } catch {
             showMessage('error', 'Failed to export data');
         }
     };
@@ -50,7 +50,7 @@ export default function Settings() {
             } else {
                 showMessage('error', result.error || 'Failed to import data');
             }
-        } catch (error) {
+        } catch {
             showMessage('error', 'Failed to read file');
         }
 

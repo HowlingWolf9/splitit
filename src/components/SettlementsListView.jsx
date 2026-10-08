@@ -65,10 +65,24 @@ export default function SettlementsListView({ onViewSettlement }) {
     // Sort settlements
     const sortedSettlements = [...filteredSettlements].sort((a, b) => {
         switch (sortBy) {
-            case 'date-desc':
-                return new Date(b.date) - new Date(a.date);
-            case 'date-asc':
-                return new Date(a.date) - new Date(b.date);
+            case 'date-desc': {
+                const dateDiff = new Date(b.date) - new Date(a.date);
+                if (dateDiff === 0) {
+                    const bUpdated = b.updatedAt ? new Date(b.updatedAt) : 0;
+                    const aUpdated = a.updatedAt ? new Date(a.updatedAt) : 0;
+                    return bUpdated - aUpdated;
+                }
+                return dateDiff;
+            }
+            case 'date-asc': {
+                const dateDiff = new Date(a.date) - new Date(b.date);
+                if (dateDiff === 0) {
+                    const bUpdated = b.updatedAt ? new Date(b.updatedAt) : 0;
+                    const aUpdated = a.updatedAt ? new Date(a.updatedAt) : 0;
+                    return aUpdated - bUpdated;
+                }
+                return dateDiff;
+            }
             case 'amount-desc':
                 return b.amount - a.amount;
             case 'amount-asc':
@@ -78,15 +92,6 @@ export default function SettlementsListView({ onViewSettlement }) {
         }
     });
 
-    if (showForm) {
-        return (
-            <SettlementForm
-                onCancel={handleFormClose}
-                onSuccess={handleFormClose}
-                editingSettlement={editingSettlement}
-            />
-        );
-    }
 
     return (
         <div>
@@ -253,6 +258,38 @@ export default function SettlementsListView({ onViewSettlement }) {
                         </div>
                     )}
                 </>
+            )}
+
+            {showForm && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        zIndex: 1000,
+                        padding: '1rem',
+                        overflowY: 'auto'
+                    }}
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            handleFormClose();
+                        }
+                    }}
+                >
+                    <div style={{ marginTop: '2rem', marginBottom: '2rem', width: '100%', maxWidth: '600px' }}>
+                        <SettlementForm
+                            onCancel={handleFormClose}
+                            onSuccess={handleFormClose}
+                            editingSettlement={editingSettlement}
+                        />
+                    </div>
+                </div>
             )}
         </div>
     );

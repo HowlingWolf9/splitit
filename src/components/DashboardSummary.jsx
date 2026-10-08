@@ -3,13 +3,11 @@ import { useExpenses } from '../store/ExpenseContext';
 import { TrendingUp, Users, Receipt, Scale } from 'lucide-react';
 
 export default function DashboardSummary() {
-    const { state, getBalances } = useExpenses();
+    const { state, balances } = useExpenses();
 
     const transactions = state.transactions || [];
     const expenses = transactions.filter(t => t.type === 'EXPENSE');
-    const settlements = transactions.filter(t => t.type === 'SETTLEMENT');
     const users = state.users || [];
-    const balances = getBalances();
 
     // Calculate total expenses
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);

@@ -2,8 +2,8 @@ import React from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { ArrowRight, Edit2, Eye } from 'lucide-react';
 
-export default function TransactionList({ onEditTransaction, onViewTransaction, transactions: transactionsProp, showMemberShare = false, memberName = '' }) {
-    const { state, currencies } = useExpenses();
+export default function TransactionList({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement, transactions: transactionsProp, showMemberShare = false }) {
+    const { state } = useExpenses();
     const transactions = transactionsProp || state.transactions || [];
 
     const formatMoney = (val) => {
@@ -80,44 +80,94 @@ export default function TransactionList({ onEditTransaction, onViewTransaction, 
                         </div>
                         {t.type === 'EXPENSE' && (
                             <>
-                                <button
-                                    onClick={() => onViewTransaction(t)}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'hsl(var(--color-accent))',
-                                        cursor: 'pointer',
-                                        padding: '0.5rem',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        borderRadius: 'var(--radius-sm)',
-                                        transition: 'background var(--transition-fast)'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                    title="View details"
-                                >
-                                    <Eye size={18} />
-                                </button>
-                                <button
-                                    onClick={() => onEditTransaction(t)}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'hsl(var(--color-primary))',
-                                        cursor: 'pointer',
-                                        padding: '0.5rem',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        borderRadius: 'var(--radius-sm)',
-                                        transition: 'background var(--transition-fast)'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                    title="Edit expense"
-                                >
-                                    <Edit2 size={18} />
-                                </button>
+                                {onViewTransaction && (
+                                    <button
+                                        onClick={() => onViewTransaction(t)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'hsl(var(--color-accent))',
+                                            cursor: 'pointer',
+                                            padding: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            borderRadius: 'var(--radius-sm)',
+                                            transition: 'background var(--transition-fast)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                        title="View details"
+                                    >
+                                        <Eye size={18} />
+                                    </button>
+                                )}
+                                {onEditTransaction && (
+                                    <button
+                                        onClick={() => onEditTransaction(t)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'hsl(var(--color-primary))',
+                                            cursor: 'pointer',
+                                            padding: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            borderRadius: 'var(--radius-sm)',
+                                            transition: 'background var(--transition-fast)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                        title="Edit expense"
+                                    >
+                                        <Edit2 size={18} />
+                                    </button>
+                                )}
+                            </>
+                        )}
+                        {t.type === 'SETTLEMENT' && (
+                            <>
+                                {onViewSettlement && (
+                                    <button
+                                        onClick={() => onViewSettlement(t)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'hsl(var(--color-accent))',
+                                            cursor: 'pointer',
+                                            padding: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            borderRadius: 'var(--radius-sm)',
+                                            transition: 'background var(--transition-fast)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                        title="View Details"
+                                    >
+                                        <Eye size={18} />
+                                    </button>
+                                )}
+                                {onEditSettlement && (
+                                    <button
+                                        onClick={() => onEditSettlement(t)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'hsl(var(--color-primary))',
+                                            cursor: 'pointer',
+                                            padding: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            borderRadius: 'var(--radius-sm)',
+                                            transition: 'background var(--transition-fast)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                        title="Edit Settlement"
+                                    >
+                                        <Edit2 size={18} />
+                                    </button>
+                                )}
                             </>
                         )}
                     </div>

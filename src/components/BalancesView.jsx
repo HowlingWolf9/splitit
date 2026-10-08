@@ -3,8 +3,7 @@ import { useExpenses } from '../store/ExpenseContext';
 import { Scale, ArrowRight, CheckCircle2, Minimize2, Users, Printer } from 'lucide-react';
 
 export default function BalancesView() {
-    const { state, getBalances } = useExpenses();
-    const balances = getBalances();
+    const { state, balances } = useExpenses();
     const [settleMode, setSettleMode] = useState('simplified'); // 'simplified' or 'direct'
 
     const formatMoney = (val) => {

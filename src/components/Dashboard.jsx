@@ -2,12 +2,10 @@ import React from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 
 export default function Dashboard() {
-    const { state, getBalances, currencies } = useExpenses();
+    const { state, balances } = useExpenses();
 
-    const balances = getBalances();
     const users = state.users || [];
     const sortedUsers = [...users].sort((a, b) => a.name.localeCompare(b.name));
-    const currencyInfo = currencies[state.currency] || currencies.USD;
 
     const formatMoney = (val) => {
         return new Intl.NumberFormat('en-US', {

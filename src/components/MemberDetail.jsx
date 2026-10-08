@@ -1,11 +1,25 @@
 import React from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { ArrowLeft, User, ArrowRight } from 'lucide-react';
+import { ArrowLeft, User, ArrowRight, UserMinus } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
 import TransactionList from './TransactionList';
 
-export default function MemberDetail({ member, onBack, onEditTransaction, onViewTransaction }) {
-    const { state, getBalances } = useExpenses();
-    const balances = getBalances();
+export default function MemberDetail({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement }) {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const { state, balances, deleteUser } = useExpenses();
+    
+    const member = (state.users || []).find(u => u.id === id);
+
+    if (!member) {
+        return (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+                <p>Member not found.</p>
+                <button className="btn" onClick={() => navigate('/members')} style={{ marginTop: '1rem' }}>Back to Members</button>
+            </div>
+        );
+    }
+
     const balance = balances[member.id] || 0;
 
     const formatMoney = (val) => {
@@ -65,12 +79,12 @@ export default function MemberDetail({ member, onBack, onEditTransaction, onView
                 const otherOwes = t.splits.find(s => s.userId === otherUser.id)?.amount || 0;
 
                 // If member paid and other owes, member is owed
-                if (memberPaid > 0 && otherOwes > 0) {
+                if (memberPaid > 0 && otherOwes > 0 && t.amount > 0) {
                     const share = (memberPaid / t.amount) * otherOwes;
                     netBalance += share;
                 }
                 // If other paid and member owes, member owes
-                if (otherPaid > 0 && memberOwes > 0) {
+                if (otherPaid > 0 && memberOwes > 0 && t.amount > 0) {
                     const share = (otherPaid / t.amount) * memberOwes;
                     netBalance -= share;
                 }
@@ -101,7 +115,7 @@ export default function MemberDetail({ member, onBack, onEditTransaction, onView
             {/* Header with back button */}
             <div className="card" style={{ marginBottom: '2rem' }}>
                 <button
-                    onClick={onBack}
+                    onClick={() => navigate('/members')}
                     style={{
                         background: 'transparent',
                         border: 'none',
@@ -254,8 +268,8 @@ export default function MemberDetail({ member, onBack, onEditTransaction, onView
                     </h3>
                     <TransactionList
                         transactions={settlements}
-                        onEditTransaction={onEditTransaction}
-                        onViewTransaction={onViewTransaction}
+                        onEditSettlement={onEditSettlement}
+                        onViewSettlement={onViewSettlement}
                     />
                 </div>
             )}
@@ -268,6 +282,30 @@ export default function MemberDetail({ member, onBack, onEditTransaction, onView
                     </div>
                 </div>
             )}
+
+            <button
+                onClick={() => {
+                    deleteUser(member.id);
+                    navigate('/members');
+                }}
+                style={{
+                    marginTop: '1.5rem',
+                    background: 'hsl(var(--color-danger) / 0.1)',
+                    color: 'hsl(var(--color-danger))',
+                    border: '1px solid hsl(var(--color-danger) / 0.3)',
+                    padding: '0.5rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: '500'
+                }}
+            >
+                <UserMinus size={16} />
+                Delete Member
+            </button>
         </div>
     );
 }

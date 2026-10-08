@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
+import { useNavigate } from 'react-router-dom';
 import { Users, ChevronRight, Search } from 'lucide-react';
 
-export default function MembersView({ onSelectMember }) {
-    const { state, getBalances, currencies } = useExpenses();
-    const balances = getBalances();
+export default function MembersView() {
+    const navigate = useNavigate();
+    const { state, balances, addUser } = useExpenses();
     const users = state.users || [];
     const [searchQuery, setSearchQuery] = useState('');
+    const [newMemberName, setNewMemberName] = useState('');
+
+    const handleAddMember = () => {
+        const name = newMemberName.trim();
+        if (name) {
+            addUser(name);
+            setNewMemberName('');
+        }
+    };
 
     // Apply search filter
     const filteredUsers = users.filter(user => {
@@ -62,6 +72,28 @@ export default function MembersView({ onSelectMember }) {
                 </div>
             </h3>
 
+            <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem' }}>
+                <input
+                    type="text"
+                    placeholder="Add new member..."
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddMember();
+                    }}
+                    className="input"
+                    style={{ flex: 1, padding: '0.5rem 1rem' }}
+                />
+                <button
+                    onClick={handleAddMember}
+                    className="btn"
+                    style={{ background: 'hsl(var(--color-accent))', color: 'white', whiteSpace: 'nowrap' }}
+                    disabled={!newMemberName.trim()}
+                >
+                    Add Member
+                </button>
+            </div>
+
             {sortedUsers.length === 0 && searchQuery ? (
                 <div style={{ color: 'hsl(var(--color-text-muted))', fontStyle: 'italic', padding: '2rem', textAlign: 'center' }}>
                     No members found for "{searchQuery}"
@@ -81,7 +113,7 @@ export default function MembersView({ onSelectMember }) {
                         return (
                             <div
                                 key={user.id}
-                                onClick={() => onSelectMember(user)}
+                                onClick={() => navigate(`/members/${user.id}`)}
                                 style={{
                                     padding: '1.25rem',
                                     background: 'hsl(var(--color-bg))',
