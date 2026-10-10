@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { ArrowUpDown, Search, List, Plus } from 'lucide-react';
+import { Search, History, Plus, HandCoins } from 'lucide-react';
 import TransactionList from './TransactionList';
 import ExpenseForm from './ExpenseForm';
 import SettlementForm from './SettlementForm';
 
 export default function AllTransactionsView({ onViewTransaction, onViewSettlement }) {
-    const { state } = useExpenses();
+    const { state, selectedGroupId, setSelectedGroupId, selectedGroup } = useExpenses();
     const [sortBy, setSortBy] = useState('date-desc');
     const [searchQuery, setSearchQuery] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
     const [editingSettlement, setEditingSettlement] = useState(null);
     const [isAddingExpense, setIsAddingExpense] = useState(false);
     const [isAddingSettlement, setIsAddingSettlement] = useState(false);
+
+    const groupFilter = selectedGroupId === 'non-group' ? 'NON_GROUP' : (selectedGroupId || 'ALL');
+
+    const handleGroupFilterChange = (e) => {
+        const val = e.target.value;
+        if (val === 'ALL') setSelectedGroupId(null);
+        else if (val === 'NON_GROUP') setSelectedGroupId('non-group');
+        else setSelectedGroupId(val);
+    };
 
     const transactions = state.transactions || [];
 
@@ -22,6 +31,12 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
     };
 
     const filteredTransactions = transactions.filter(t => {
+        if (groupFilter === 'NON_GROUP') {
+            if (t.groupId) return false;
+        } else if (groupFilter !== 'ALL') {
+            if (t.groupId !== groupFilter) return false;
+        }
+
         if (!searchQuery) return true;
         
         const query = searchQuery.toLowerCase();
@@ -67,227 +82,210 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                 return a.amount - b.amount;
             case 'desc-asc':
                 return a.description.localeCompare(b.description);
-            case 'desc-desc':
-                return b.description.localeCompare(a.description);
             default:
                 return 0;
         }
     });
 
-    const handleCloseExpenseForm = () => {
-        setEditingExpense(null);
-        setIsAddingExpense(false);
-    };
-
-    const handleCloseSettlementForm = () => {
-        setEditingSettlement(null);
-        setIsAddingSettlement(false);
-    };
-
     return (
-        <div>
-            {/* Header */}
-            <div className="card" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <List size={24} style={{ color: 'hsl(var(--color-primary))' }} />
-                    <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700' }}>All Transactions</h2>
-                </div>
-            </div>
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+            {/* Header & Controls Toolbar */}
+            <div className="card" style={{ padding: '1.25rem' }}>
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '1rem',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem'
+                }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
+                            Activity Ledger {selectedGroup ? `— ${selectedGroup.name}` : ''}
+                        </h2>
+                        <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
+                            {filteredTransactions.length} recorded events
+                        </span>
+                    </div>
 
-            {transactions.length === 0 ? (
-                <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-                    <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-                        No transactions yet.
-                    </p>
-                </div>
-            ) : (
-                <>
-                    {/* Controls */}
-                    <div className="card" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <ArrowUpDown size={18} />
-                            <span style={{ fontWeight: 600 }}>Sort by:</span>
-                        </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <select
+                            className="input"
+                            value={groupFilter}
+                            onChange={handleGroupFilterChange}
+                            style={{ maxWidth: '170px', padding: '0.42rem 0.65rem', fontSize: '0.84rem' }}
+                        >
+                            <option value="ALL">All Groups</option>
+                            <option value="NON_GROUP">Non-group</option>
+                            {(state.groups || []).map(g => (
+                                <option key={g.id} value={g.id}>👥 {g.name}</option>
+                            ))}
+                        </select>
+
                         <select
                             className="input"
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value)}
-                            style={{ maxWidth: '200px', padding: '0.5rem' }}
+                            style={{ maxWidth: '150px', padding: '0.42rem 0.65rem', fontSize: '0.84rem' }}
                         >
-                            <option value="date-desc">Date (Newest First)</option>
-                            <option value="date-asc">Date (Oldest First)</option>
-                            <option value="amount-desc">Amount (High to Low)</option>
-                            <option value="amount-asc">Amount (Low to High)</option>
-                            <option value="desc-asc">Description (A-Z)</option>
-                            <option value="desc-desc">Description (Z-A)</option>
+                            <option value="date-desc">Newest First</option>
+                            <option value="date-asc">Oldest First</option>
+                            <option value="amount-desc">Highest Amount</option>
+                            <option value="amount-asc">Lowest Amount</option>
+                            <option value="desc-asc">Title A-Z</option>
                         </select>
-
-                        {/* Search Input */}
-                        <div style={{ position: 'relative', flex: '1 1 250px', minWidth: '200px' }}>
-                            <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--color-text-muted))' }} />
-                            <input
-                                type="text"
-                                placeholder="Search all transactions..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="input"
-                                style={{
-                                    paddingLeft: '2.5rem',
-                                    padding: '0.5rem 0.5rem 0.5rem 2.5rem'
-                                }}
-                            />
-                        </div>
-
-                        <span style={{ marginLeft: 'auto', color: 'hsl(var(--color-text-muted))', fontSize: '0.9rem' }}>
-                            {filteredTransactions.length} {filteredTransactions.length === 1 ? 'transaction' : 'transactions'}
-                        </span>
                     </div>
+                </div>
 
-                    {/* List */}
-                    {sortedTransactions.length === 0 && searchQuery ? (
-                        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-                            <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-                                No transactions found
-                            </p>
-                            <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.9rem' }}>
-                                Try adjusting your search terms
-                            </p>
-                        </div>
-                    ) : (
-                        <TransactionList
-                            transactions={sortedTransactions}
-                            onEditTransaction={setEditingExpense}
-                            onViewTransaction={onViewTransaction}
-                            onEditSettlement={setEditingSettlement}
-                            onViewSettlement={onViewSettlement}
+                {/* Search */}
+                <div style={{ position: 'relative' }}>
+                    <Search size={15} style={{
+                        position: 'absolute',
+                        left: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'hsl(var(--color-text-muted))'
+                    }} />
+                    <input
+                        type="text"
+                        placeholder="Search all transactions, payments, or members..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="input"
+                        style={{
+                            paddingLeft: '2.2rem',
+                            padding: '0.45rem 0.65rem 0.45rem 2.2rem',
+                            fontSize: '0.84rem'
+                        }}
+                    />
+                </div>
+            </div>
+
+            {/* List */}
+            {sortedTransactions.length === 0 ? (
+                <div className="card" style={{ padding: '3.5rem 1.5rem', textAlign: 'center' }}>
+                    <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '50%',
+                        background: 'hsl(var(--color-surface-dim))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 1rem',
+                        color: 'hsl(var(--color-text-muted))'
+                    }}>
+                        <History size={24} />
+                    </div>
+                    <p style={{ color: 'hsl(var(--color-text-main))', fontWeight: 600, fontSize: '1rem', margin: 0 }}>
+                        {searchQuery ? 'No matching activity found' : 'No recorded activity yet'}
+                    </p>
+                    <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.85rem', margin: '0.35rem 0 0' }}>
+                        Transactions and settlements will appear in this ledger
+                    </p>
+                </div>
+            ) : (
+                <TransactionList
+                    transactions={sortedTransactions}
+                    onEditTransaction={setEditingExpense}
+                    onViewTransaction={onViewTransaction}
+                    onEditSettlement={setEditingSettlement}
+                    onViewSettlement={onViewSettlement}
+                />
+            )}
+
+            {/* Edit Modals */}
+            {editingExpense && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setEditingExpense(null);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '800px' }}>
+                        <ExpenseForm
+                            editingTransaction={editingExpense}
+                            onCancel={() => setEditingExpense(null)}
+                            onSuccess={() => setEditingExpense(null)}
                         />
-                    )}
-                </>
+                    </div>
+                </div>
+            )}
+
+            {editingSettlement && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setEditingSettlement(null);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <SettlementForm
+                            editingSettlement={editingSettlement}
+                            onCancel={() => setEditingSettlement(null)}
+                            onSuccess={() => setEditingSettlement(null)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Add Expense Modal */}
+            {isAddingExpense && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setIsAddingExpense(false);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '800px' }}>
+                        <ExpenseForm
+                            onCancel={() => setIsAddingExpense(false)}
+                            onSuccess={() => setIsAddingExpense(false)}
+                            defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Record Settlement Modal */}
+            {isAddingSettlement && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setIsAddingSettlement(false);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <SettlementForm
+                            onCancel={() => setIsAddingSettlement(false)}
+                            onSuccess={() => setIsAddingSettlement(false)}
+                            defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
+                        />
+                    </div>
+                </div>
             )}
 
             {/* Floating Action Buttons */}
-            <div style={{
-                position: 'fixed',
-                bottom: '2rem',
-                right: '2rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-                zIndex: 100
-            }}>
+            <div className="fab-container">
                 <button
+                    type="button"
+                    className="fab fab-secondary"
                     onClick={() => setIsAddingSettlement(true)}
-                    style={{
-                        background: 'hsl(var(--color-success))',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '2rem',
-                        padding: '1rem 1.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                        fontWeight: '600',
-                        fontSize: '0.95rem',
-                        transition: 'transform 0.2s, box-shadow 0.2s'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)'; }}
+                    title="Record Settlement"
                 >
-                    <Plus size={20} />
-                    Settlement
+                    <HandCoins size={18} strokeWidth={2.2} />
+                    <span>Record Settlement</span>
                 </button>
-                
                 <button
+                    type="button"
+                    className="fab fab-primary"
                     onClick={() => setIsAddingExpense(true)}
-                    style={{
-                        background: 'hsl(var(--color-accent))',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '2rem',
-                        padding: '1rem 1.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                        fontWeight: '600',
-                        fontSize: '0.95rem',
-                        transition: 'transform 0.2s, box-shadow 0.2s'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)'; }}
+                    title="Add Expense"
                 >
-                    <Plus size={20} />
-                    Expense
+                    <Plus size={18} strokeWidth={2.5} />
+                    <span>Add Expense</span>
                 </button>
             </div>
-
-            {/* Modals */}
-            {(editingExpense || isAddingExpense) && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        zIndex: 1000,
-                        padding: '1rem',
-                        overflowY: 'auto'
-                    }}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) {
-                            handleCloseExpenseForm();
-                        }
-                    }}
-                >
-                    <div style={{ marginTop: '2rem', marginBottom: '2rem', width: '100%', maxWidth: '800px' }}>
-                        <ExpenseForm
-                            onCancel={handleCloseExpenseForm}
-                            onSuccess={handleCloseExpenseForm}
-                            editingTransaction={editingExpense}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {(editingSettlement || isAddingSettlement) && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        zIndex: 1000,
-                        padding: '1rem',
-                        overflowY: 'auto'
-                    }}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) {
-                            handleCloseSettlementForm();
-                        }
-                    }}
-                >
-                    <div style={{ marginTop: '2rem', marginBottom: '2rem', width: '100%', maxWidth: '600px' }}>
-                        <SettlementForm
-                            onCancel={handleCloseSettlementForm}
-                            onSuccess={handleCloseSettlementForm}
-                            editingSettlement={editingSettlement}
-                        />
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

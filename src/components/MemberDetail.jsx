@@ -7,20 +7,27 @@ import TransactionList from './TransactionList';
 export default function MemberDetail({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement }) {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { state, balances, deleteUser } = useExpenses();
+    const { state, balances, deleteUser, selectedGroupId, selectedGroup, getGroupBalances } = useExpenses();
     
     const member = (state.users || []).find(u => u.id === id);
 
     if (!member) {
         return (
             <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-                <p>Member not found.</p>
-                <button className="btn" onClick={() => navigate('/members')} style={{ marginTop: '1rem' }}>Back to Members</button>
+                <p style={{ color: 'hsl(var(--color-text-muted))' }}>Member not found.</p>
+                <button className="btn btn-secondary" onClick={() => navigate('/members')} style={{ marginTop: '1rem' }}>
+                    Back to Members
+                </button>
             </div>
         );
     }
 
-    const balance = balances[member.id] || 0;
+    const isGroupSelected = !!selectedGroupId && !!selectedGroup;
+    const isNonGroup = selectedGroupId === 'non-group';
+
+    const balance = isGroupSelected
+        ? (getGroupBalances(selectedGroupId)[member.id] || 0)
+        : (balances[member.id] || 0);
 
     const formatMoney = (val) => {
         return new Intl.NumberFormat('en-US', {
@@ -29,8 +36,15 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
         }).format(val);
     };
 
-    // Filter transactions to show only those involving this member
-    const memberTransactions = (state.transactions || []).filter(t => {
+    const transactionsInScope = (state.transactions || []).filter(t => {
+        if (isGroupSelected) {
+            if (isNonGroup) return !t.groupId || t.groupId === 'non-group';
+            return t.groupId === selectedGroupId;
+        }
+        return true;
+    });
+
+    const memberTransactions = transactionsInScope.filter(t => {
         if (t.type === 'EXPENSE') {
             const isPayer = t.payers.some(p => p.userId === member.id);
             const isSplit = t.splits.some(s => s.userId === member.id);
@@ -42,11 +56,9 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
         return false;
     });
 
-    // Separate expenses and settlements
     const expenses = memberTransactions.filter(t => t.type === 'EXPENSE');
     const settlements = memberTransactions.filter(t => t.type === 'SETTLEMENT');
 
-    // Calculate member's share for each expense
     const expensesWithMemberShare = expenses.map(expense => {
         const paidAmount = expense.payers.find(p => p.userId === member.id)?.amount || 0;
         const owedAmount = expense.splits.find(s => s.userId === member.id)?.amount || 0;
@@ -57,45 +69,36 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
         };
     });
 
-    const isPositive = balance > 0;
-    const isNegative = balance < 0;
+    const isPositive = balance > 0.009;
+    const isNegative = balance < -0.009;
 
-    // Calculate pairwise balances with other members
+    const usersInScope = isGroupSelected && !isNonGroup
+        ? (state.users || []).filter(u => selectedGroup.members.includes(u.id))
+        : (state.users || []);
+
     const pairwiseBalances = [];
-    state.users.forEach(otherUser => {
+    usersInScope.forEach(otherUser => {
         if (otherUser.id === member.id) return;
 
         let netBalance = 0;
 
-        state.transactions.forEach(t => {
+        transactionsInScope.forEach(t => {
             if (t.type === 'EXPENSE') {
-                // What member paid
                 const memberPaid = t.payers.find(p => p.userId === member.id)?.amount || 0;
-                // What member owes
                 const memberOwes = t.splits.find(s => s.userId === member.id)?.amount || 0;
-                // What other user paid
                 const otherPaid = t.payers.find(p => p.userId === otherUser.id)?.amount || 0;
-                // What other user owes
                 const otherOwes = t.splits.find(s => s.userId === otherUser.id)?.amount || 0;
 
-                // If member paid and other owes, member is owed
                 if (memberPaid > 0 && otherOwes > 0 && t.amount > 0) {
-                    const share = (memberPaid / t.amount) * otherOwes;
-                    netBalance += share;
+                    netBalance += (memberPaid / t.amount) * otherOwes;
                 }
-                // If other paid and member owes, member owes
                 if (otherPaid > 0 && memberOwes > 0 && t.amount > 0) {
-                    const share = (otherPaid / t.amount) * memberOwes;
-                    netBalance -= share;
+                    netBalance -= (otherPaid / t.amount) * memberOwes;
                 }
             }
             if (t.type === 'SETTLEMENT') {
-                if (t.from === member.id && t.to === otherUser.id) {
-                    netBalance += t.amount;
-                }
-                if (t.from === otherUser.id && t.to === member.id) {
-                    netBalance -= t.amount;
-                }
+                if (t.from === member.id && t.to === otherUser.id) netBalance += t.amount;
+                if (t.from === otherUser.id && t.to === member.id) netBalance -= t.amount;
             }
         });
 
@@ -107,147 +110,133 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
         }
     });
 
-    const owes = pairwiseBalances.filter(pb => pb.balance < 0);
-    const isOwed = pairwiseBalances.filter(pb => pb.balance > 0);
+    const owes = pairwiseBalances.filter(p => p.balance < 0);
+    const isOwed = pairwiseBalances.filter(p => p.balance > 0);
+
+    const handleDeleteMember = () => {
+        if (window.confirm(`Delete ${member.name} from the system? This action cannot be undone.`)) {
+            deleteUser(member.id);
+            navigate('/members');
+        }
+    };
 
     return (
-        <div>
-            {/* Header with back button */}
-            <div className="card" style={{ marginBottom: '2rem' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'grid', gap: '1.25rem' }}>
+            {/* Header Card */}
+            <div className="card">
                 <button
                     onClick={() => navigate('/members')}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'hsl(var(--color-primary))',
-                        cursor: 'pointer',
-                        padding: '0.5rem 1rem 0.5rem 0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.95rem',
-                        fontWeight: '500',
-                        marginBottom: '1rem'
-                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginBottom: '1.25rem' }}
                 >
-                    <ArrowLeft size={18} />
-                    Back to Members
+                    <ArrowLeft size={16} />
+                    <span>Back to Members</span>
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                    <div style={{
-                        width: '60px',
-                        height: '60px',
-                        borderRadius: '50%',
-                        background: 'hsl(var(--color-primary) / 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'hsl(var(--color-primary))'
-                    }}>
-                        <User size={30} />
-                    </div>
-                    <div>
-                        <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: '700' }}>{member.name}</h2>
-                        <div style={{ fontSize: '0.9rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.25rem' }}>
-                            {memberTransactions.length} {memberTransactions.length === 1 ? 'transaction' : 'transactions'}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{
+                            width: '56px',
+                            height: '56px',
+                            borderRadius: '50%',
+                            background: 'hsl(var(--color-accent) / 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'hsl(var(--color-accent))',
+                            fontWeight: 800,
+                            fontSize: '1.5rem'
+                        }}>
+                            {member.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{member.name}</h2>
+                            <div style={{ fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
+                                {memberTransactions.length} {memberTransactions.length === 1 ? 'transaction' : 'transactions'}
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div style={{
-                    padding: '1rem',
-                    background: isPositive ? 'hsl(var(--color-success) / 0.1)' : isNegative ? 'hsl(var(--color-danger) / 0.1)' : 'hsl(var(--color-bg))',
-                    borderRadius: 'var(--radius-md)',
-                    borderLeft: `4px solid ${isPositive ? 'hsl(var(--color-success))' : isNegative ? 'hsl(var(--color-danger))' : 'hsl(var(--color-text-muted))'}`
-                }}>
-                    <div style={{ fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))', marginBottom: '0.25rem' }}>
-                        Balance
-                    </div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: '800', color: isPositive ? 'hsl(var(--color-success))' : isNegative ? 'hsl(var(--color-danger))' : 'hsl(var(--color-text))' }}>
-                        {formatMoney(Math.abs(balance))}
-                    </div>
-                    <div style={{ fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                        {isPositive && <span style={{ color: 'hsl(var(--color-success))' }}>is owed</span>}
-                        {isNegative && <span style={{ color: 'hsl(var(--color-danger))' }}>owes</span>}
-                        {!isPositive && !isNegative && <span style={{ color: 'hsl(var(--color-text-muted))' }}>settled up</span>}
+                    <div style={{
+                        padding: '0.75rem 1.25rem',
+                        background: 'hsl(var(--color-surface-dim))',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid hsl(var(--color-border))',
+                        textAlign: 'right'
+                    }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'hsl(var(--color-text-muted))', textTransform: 'uppercase' }}>
+                            Net Balance
+                        </div>
+                        <div style={{
+                            fontSize: '1.5rem',
+                            fontWeight: 800,
+                            color: isPositive ? 'hsl(var(--color-success))' : isNegative ? 'hsl(var(--color-danger))' : 'hsl(var(--color-text-main))'
+                        }}>
+                            {isPositive && `+${formatMoney(balance)}`}
+                            {isNegative && `-${formatMoney(Math.abs(balance))}`}
+                            {!isPositive && !isNegative && '₹0.00'}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Pairwise Balance Breakdown */}
+            {/* Pairwise Breakdown */}
             {(owes.length > 0 || isOwed.length > 0) && (
-                <div className="card" style={{ marginBottom: '2rem' }}>
-                    <h3 style={{ marginBottom: '1rem', borderBottom: '1px solid hsl(var(--color-text-muted) / 0.2)', paddingBottom: '0.5rem' }}>
+                <div className="card">
+                    <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 700 }}>
                         Balance Breakdown
                     </h3>
 
-                    {owes.length > 0 && (
-                        <div style={{ marginBottom: isOwed.length > 0 ? '1.5rem' : '0' }}>
-                            <div style={{ fontSize: '0.9rem', fontWeight: '600', color: 'hsl(var(--color-danger))', marginBottom: '0.75rem' }}>
-                                {member.name} owes:
+                    <div style={{ display: 'grid', gap: '0.65rem' }}>
+                        {owes.map(({ user, balance }) => (
+                            <div key={user.id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.75rem 1rem',
+                                background: 'hsl(var(--color-danger-soft))',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid hsl(var(--color-danger) / 0.2)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                    <strong style={{ color: 'hsl(var(--color-danger-text))' }}>{member.name}</strong>
+                                    <ArrowRight size={14} style={{ color: 'hsl(var(--color-text-muted))' }} />
+                                    <strong>{user.name}</strong>
+                                </div>
+                                <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'hsl(var(--color-danger-text))' }}>
+                                    {formatMoney(Math.abs(balance))}
+                                </span>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {owes.map(({ user, balance }) => (
-                                    <div key={user.id} style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '0.75rem 1rem',
-                                        background: 'hsl(var(--color-danger) / 0.1)',
-                                        borderRadius: 'var(--radius-md)',
-                                        borderLeft: '3px solid hsl(var(--color-danger))'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <span style={{ fontWeight: '600', color: 'hsl(var(--color-danger))' }}>{member.name}</span>
-                                            <ArrowRight size={16} style={{ color: 'hsl(var(--color-text-muted))' }} />
-                                            <span style={{ fontWeight: '600' }}>{user.name}</span>
-                                        </div>
-                                        <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'hsl(var(--color-danger))' }}>
-                                            {formatMoney(Math.abs(balance))}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                        ))}
 
-                    {isOwed.length > 0 && (
-                        <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: '600', color: 'hsl(var(--color-success))', marginBottom: '0.75rem' }}>
-                                {member.name} is owed by:
+                        {isOwed.map(({ user, balance }) => (
+                            <div key={user.id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.75rem 1rem',
+                                background: 'hsl(var(--color-success-soft))',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid hsl(var(--color-success) / 0.2)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                    <strong>{user.name}</strong>
+                                    <ArrowRight size={14} style={{ color: 'hsl(var(--color-text-muted))' }} />
+                                    <strong style={{ color: 'hsl(var(--color-success))' }}>{member.name}</strong>
+                                </div>
+                                <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'hsl(var(--color-success))' }}>
+                                    {formatMoney(Math.abs(balance))}
+                                </span>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {isOwed.map(({ user, balance }) => (
-                                    <div key={user.id} style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '0.75rem 1rem',
-                                        background: 'hsl(var(--color-success) / 0.1)',
-                                        borderRadius: 'var(--radius-md)',
-                                        borderLeft: '3px solid hsl(var(--color-success))'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <span style={{ fontWeight: '600' }}>{user.name}</span>
-                                            <ArrowRight size={16} style={{ color: 'hsl(var(--color-text-muted))' }} />
-                                            <span style={{ fontWeight: '600', color: 'hsl(var(--color-success))' }}>{member.name}</span>
-                                        </div>
-                                        <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'hsl(var(--color-success))' }}>
-                                            {formatMoney(Math.abs(balance))}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {/* Expenses Section */}
+            {/* Expenses */}
             {expenses.length > 0 && (
-                <div className="card" style={{ marginBottom: '2rem' }}>
-                    <h3 style={{ marginBottom: '1rem', borderBottom: '1px solid hsl(var(--color-text-muted) / 0.2)', paddingBottom: '0.5rem' }}>
+                <div className="card">
+                    <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 700 }}>
                         Expenses ({expenses.length})
                     </h3>
                     <TransactionList
@@ -255,15 +244,14 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                         onEditTransaction={onEditTransaction}
                         onViewTransaction={onViewTransaction}
                         showMemberShare={true}
-                        memberName={member.name}
                     />
                 </div>
             )}
 
-            {/* Settlements Section */}
+            {/* Settlements */}
             {settlements.length > 0 && (
                 <div className="card">
-                    <h3 style={{ marginBottom: '1rem', borderBottom: '1px solid hsl(var(--color-text-muted) / 0.2)', paddingBottom: '0.5rem' }}>
+                    <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 700 }}>
                         Settlements ({settlements.length})
                     </h3>
                     <TransactionList
@@ -274,38 +262,17 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                 </div>
             )}
 
-            {/* No transactions message */}
-            {memberTransactions.length === 0 && (
-                <div className="card">
-                    <div style={{ color: 'hsl(var(--color-text-muted))', fontStyle: 'italic', padding: '2rem', textAlign: 'center' }}>
-                        {member.name} hasn't participated in any transactions yet.
-                    </div>
-                </div>
-            )}
-
-            <button
-                onClick={() => {
-                    deleteUser(member.id);
-                    navigate('/members');
-                }}
-                style={{
-                    marginTop: '1.5rem',
-                    background: 'hsl(var(--color-danger) / 0.1)',
-                    color: 'hsl(var(--color-danger))',
-                    border: '1px solid hsl(var(--color-danger) / 0.3)',
-                    padding: '0.5rem 1rem',
-                    borderRadius: 'var(--radius-md)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    fontWeight: '500'
-                }}
-            >
-                <UserMinus size={16} />
-                Delete Member
-            </button>
+            {/* Delete Member Option */}
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '0.5rem' }}>
+                <button
+                    type="button"
+                    onClick={handleDeleteMember}
+                    className="btn btn-danger btn-sm"
+                >
+                    <UserMinus size={15} />
+                    <span>Delete Member</span>
+                </button>
+            </div>
         </div>
     );
 }

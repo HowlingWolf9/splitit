@@ -1,15 +1,38 @@
 import React from 'react';
 
 export default function SplitSelector({
-    users, getSplits,
-    splitMode, setSplitMode,
-    splitSelected, setSplitSelected,
-    splitShares, setSplitShares,
-    splitAmounts, setSplitAmounts,
-    splitAmountsManual, setSplitAmountsManual,
-    addUser
+    users,
+    getSplits,
+    splitMode,
+    setSplitMode,
+    splitSelected,
+    setSplitSelected,
+    splitShares,
+    setSplitShares,
+    splitAmounts,
+    setSplitAmounts,
+    splitAmountsManual,
+    setSplitAmountsManual,
+    addUser,
+    totalAmount = 0,
+    currency = 'INR',
+    isSplitValid = true
 }) {
-    const toggleContainerStyle = { display: 'flex', background: 'hsl(var(--color-bg))', borderRadius: 'var(--radius-sm)', padding: '2px', gap: '2px' };
+    const formatMoney = (val) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency || 'INR'
+        }).format(val || 0);
+    };
+
+    const toggleContainerStyle = {
+        display: 'flex',
+        background: 'hsl(var(--color-bg))',
+        borderRadius: 'var(--radius-sm)',
+        padding: '2px',
+        gap: '2px'
+    };
+
     const toggleBtnStyle = (isActive) => ({
         flex: 1,
         padding: '0.25rem 0.75rem',
@@ -23,11 +46,17 @@ export default function SplitSelector({
         transition: 'all var(--transition-fast)'
     });
 
+    const splits = getSplits();
+    const currentSplitTotal = splits.reduce((sum, s) => sum + s.amount, 0);
+    const selectedUsers = users.filter(u => splitSelected[u.id] !== undefined ? splitSelected[u.id] : true);
+    const remainingDiff = Math.round((totalAmount - currentSplitTotal) * 100) / 100;
+
     return (
         <div style={{ padding: '1rem', border: '1px solid hsl(var(--color-text-muted) / 0.2)', borderRadius: 'var(--radius-md)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            {/* Header: Title and Mode Toggles */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <span style={{ fontWeight: 600 }}>Split How?</span>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button
                         type="button"
                         onClick={() => {
@@ -74,55 +103,194 @@ export default function SplitSelector({
                 </div>
             </div>
 
-            {users.map(u => (
-                <div key={u.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', padding: '0.25rem 0' }}>
-                    <input
-                        type="checkbox"
-                        checked={splitSelected[u.id] || false}
-                        onChange={e => setSplitSelected({ ...splitSelected, [u.id]: e.target.checked })}
-                        style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.75rem', cursor: 'pointer' }}
-                    />
-                    <span style={{ flex: 1, fontWeight: 500 }}>{u.name}</span>
+            {/* Members List */}
+            {users.map(u => {
+                const isSelected = splitSelected[u.id] !== undefined ? splitSelected[u.id] : true;
+                const userSplit = splits.find(s => s.userId === u.id);
+                const assignedAmount = userSplit ? userSplit.amount : 0;
+                const isManual = !!splitAmountsManual[u.id];
 
-                    {splitSelected[u.id] && splitMode === 'SHARES' && (
+                return (
+                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', padding: '0.25rem 0', gap: '0.5rem' }}>
                         <input
-                            type="number"
-                            value={splitShares[u.id] || ''}
-                            onChange={e => setSplitShares({ ...splitShares, [u.id]: e.target.value })}
-                            style={{ width: '60px', padding: '0.25rem', marginRight: '0.5rem' }}
-                            placeholder="Shares"
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={e => setSplitSelected({ ...splitSelected, [u.id]: e.target.checked })}
+                            style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer', flexShrink: 0 }}
                         />
-                    )}
+                        <span style={{ flex: 1, fontWeight: 500, opacity: isSelected ? 1 : 0.45 }}>{u.name}</span>
 
-                    {splitSelected[u.id] && splitMode === 'EXACT_AMOUNTS' && (
-                        <input
-                            type="number"
-                            step="0.01"
-                            value={splitAmounts[u.id] || ''}
-                            onChange={e => {
-                                setSplitAmounts({ ...splitAmounts, [u.id]: e.target.value });
-                                setSplitAmountsManual({ ...splitAmountsManual, [u.id]: true });
-                            }}
-                            style={{ width: '80px', padding: '0.25rem', marginRight: '0.5rem' }}
-                            placeholder="Auto"
-                        />
-                    )}
+                        {isSelected && splitMode === 'SHARES' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={splitShares[u.id] !== undefined ? splitShares[u.id] : 1}
+                                    onChange={e => setSplitShares({ ...splitShares, [u.id]: e.target.value })}
+                                    style={{
+                                        width: '75px',
+                                        padding: '0.3rem 0.45rem',
+                                        fontSize: '0.85rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        border: '1px solid hsl(var(--color-border))',
+                                        background: 'hsl(var(--color-surface))',
+                                        color: 'hsl(var(--color-text-main))'
+                                    }}
+                                    placeholder="Shares"
+                                />
+                                <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', minWidth: '70px', textAlign: 'right' }}>
+                                    {formatMoney(assignedAmount)}
+                                </span>
+                            </div>
+                        )}
 
-                    {splitSelected[u.id] && splitMode !== 'EXACT_AMOUNTS' && (
-                        <span style={{ fontSize: '0.9rem', color: 'hsl(var(--color-text-muted))' }}>
-                            {(getSplits().find(s => s.userId === u.id)?.amount || 0).toFixed(2)}
+                        {isSelected && splitMode === 'EXACT_AMOUNTS' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={splitAmounts[u.id] !== undefined ? splitAmounts[u.id] : ''}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setSplitAmounts({ ...splitAmounts, [u.id]: val });
+                                        if (val.trim() === '') {
+                                            const next = { ...splitAmountsManual };
+                                            delete next[u.id];
+                                            setSplitAmountsManual(next);
+                                        } else {
+                                            setSplitAmountsManual({ ...splitAmountsManual, [u.id]: true });
+                                        }
+                                    }}
+                                    style={{
+                                        width: '95px',
+                                        padding: '0.3rem 0.5rem',
+                                        fontSize: '0.85rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        border: isManual ? '1px solid hsl(var(--color-accent))' : '1px solid hsl(var(--color-border))',
+                                        background: 'hsl(var(--color-surface))',
+                                        color: 'hsl(var(--color-text-main))'
+                                    }}
+                                    placeholder="Auto"
+                                />
+
+                                {isManual ? (
+                                    <button
+                                        type="button"
+                                        title="Click to reset to auto-split"
+                                        onClick={() => {
+                                            const nextAmounts = { ...splitAmounts };
+                                            delete nextAmounts[u.id];
+                                            setSplitAmounts(nextAmounts);
+                                            const nextManual = { ...splitAmountsManual };
+                                            delete nextManual[u.id];
+                                            setSplitAmountsManual(nextManual);
+                                        }}
+                                        style={{
+                                            fontSize: '0.72rem',
+                                            padding: '0.2rem 0.45rem',
+                                            background: 'hsl(var(--color-surface-dim))',
+                                            color: 'hsl(var(--color-accent))',
+                                            border: '1px solid hsl(var(--color-accent) / 0.3)',
+                                            borderRadius: 'var(--radius-sm)',
+                                            cursor: 'pointer',
+                                            fontWeight: 600
+                                        }}
+                                    >
+                                        Auto
+                                    </button>
+                                ) : (
+                                    <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-success))', fontStyle: 'italic', minWidth: '65px', textAlign: 'right' }}>
+                                        {formatMoney(assignedAmount)}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
+                        {isSelected && splitMode === 'EQUAL' && (
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'hsl(var(--color-text-muted))', minWidth: '70px', textAlign: 'right' }}>
+                                {formatMoney(assignedAmount)}
+                            </span>
+                        )}
+                    </div>
+                );
+            })}
+
+            {/* Dynamic Status / Summary Banner */}
+            <div style={{
+                marginTop: '0.85rem',
+                padding: '0.6rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                background: isSplitValid
+                    ? 'hsl(var(--color-success) / 0.1)'
+                    : 'hsl(var(--color-danger) / 0.1)',
+                border: `1px solid ${isSplitValid ? 'hsl(var(--color-success) / 0.3)' : 'hsl(var(--color-danger) / 0.3)'}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                color: isSplitValid ? 'hsl(var(--color-success))' : 'hsl(var(--color-danger))',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+            }}>
+                {splitMode === 'EXACT_AMOUNTS' && (
+                    <>
+                        <span>
+                            Allocated: {formatMoney(currentSplitTotal)} of {formatMoney(totalAmount)}
                         </span>
-                    )}
-
-                    {splitSelected[u.id] && splitMode === 'EXACT_AMOUNTS' && !splitAmountsManual[u.id] && (
-                        <span style={{ fontSize: '0.9rem', color: 'hsl(var(--color-success))', fontStyle: 'italic' }}>
-                            {(getSplits().find(s => s.userId === u.id)?.amount || 0).toFixed(2)}
+                        <span>
+                            {Math.abs(remainingDiff) < 0.01
+                                ? '✓ All amounts matched'
+                                : remainingDiff > 0
+                                    ? `${formatMoney(remainingDiff)} remaining`
+                                    : `${formatMoney(Math.abs(remainingDiff))} over total`}
                         </span>
-                    )}
-                </div>
-            ))}
+                    </>
+                )}
 
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid hsl(var(--color-text-muted) / 0.1)' }}>
+                {splitMode === 'SHARES' && (
+                    <>
+                        {(() => {
+                            const totalShares = selectedUsers.reduce((sum, u) => {
+                                const s = parseFloat(splitShares[u.id] !== undefined ? splitShares[u.id] : 1);
+                                return sum + ((isNaN(s) || s < 0) ? 0 : s);
+                            }, 0);
+                            return (
+                                <>
+                                    <span>
+                                        Total Shares: {totalShares} ({selectedUsers.length} selected)
+                                    </span>
+                                    <span>
+                                        {totalShares > 0 && totalAmount > 0
+                                            ? `${formatMoney(totalAmount / totalShares)} per share`
+                                            : isSplitValid
+                                                ? '✓ Valid shares'
+                                                : '⚠️ Assign at least 1 share'}
+                                    </span>
+                                </>
+                            );
+                        })()}
+                    </>
+                )}
+
+                {splitMode === 'EQUAL' && (
+                    <>
+                        <span>
+                            Split equally among {selectedUsers.length} {selectedUsers.length === 1 ? 'member' : 'members'}
+                        </span>
+                        <span>
+                            {selectedUsers.length > 0 && totalAmount > 0
+                                ? `${formatMoney(totalAmount / selectedUsers.length)} each`
+                                : 'Select at least 1 member'}
+                        </span>
+                    </>
+                )}
+            </div>
+
+            {/* Quick Add Member */}
+            <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid hsl(var(--color-text-muted) / 0.1)' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <input
                         type="text"

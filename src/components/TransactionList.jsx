@@ -1,8 +1,15 @@
 import React from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { ArrowRight, Edit2, Eye } from 'lucide-react';
+import { ArrowRight, Edit2, Receipt, HandCoins } from 'lucide-react';
 
-export default function TransactionList({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement, transactions: transactionsProp, showMemberShare = false }) {
+export default function TransactionList({
+    onEditTransaction,
+    onViewTransaction,
+    onEditSettlement,
+    onViewSettlement,
+    transactions: transactionsProp,
+    showMemberShare = false
+}) {
     const { state } = useExpenses();
     const transactions = transactionsProp || state.transactions || [];
 
@@ -28,7 +35,11 @@ export default function TransactionList({ onEditTransaction, onViewTransaction, 
     };
 
     if (transactions.length === 0) {
-        return <div style={{ color: 'hsl(var(--color-text-muted))', fontStyle: 'italic', padding: '1rem' }}>No expenses recorded yet.</div>;
+        return (
+            <div style={{ color: 'hsl(var(--color-text-muted))', textAlign: 'center', padding: '2rem 1rem', fontSize: '0.9rem' }}>
+                No recent activity to display.
+            </div>
+        );
     }
 
     const getUserName = (id) => {
@@ -37,142 +48,141 @@ export default function TransactionList({ onEditTransaction, onViewTransaction, 
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {transactions.map(t => (
-                <div key={t.id} className="card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: `4px solid ${t.type === 'SETTLEMENT' ? 'hsl(var(--color-success))' : 'hsl(var(--color-primary))'}` }}>
+        <div style={{ display: 'grid', gap: '0.65rem' }}>
+            {transactions.map(t => {
+                const isSettlement = t.type === 'SETTLEMENT';
+                const group = (state.groups || []).find(g => g.id === t.groupId);
 
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{t.description}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))' }}>{formatDateTime(t.date)}</div>
+                const handleClick = () => {
+                    if (isSettlement && onViewSettlement) {
+                        onViewSettlement(t);
+                    } else if (!isSettlement && onViewTransaction) {
+                        onViewTransaction(t);
+                    }
+                };
 
-                        <div style={{ marginTop: '0.25rem', fontSize: '0.9rem' }}>
-                            {t.type === 'SETTLEMENT' ? (
-                                <span>
-                                    {getUserName(t.from)} <ArrowRight size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {getUserName(t.to)}
-                                </span>
-                            ) : (
-                                <span>
-                                    {t.payers.length === 1 ? getUserName(t.payers[0].userId) : `${t.payers.length} people`} paid
-                                </span>
-                            )}
-                        </div>
-                    </div>
+                const handleEditClick = (e) => {
+                    e.stopPropagation();
+                    if (isSettlement && onEditSettlement) {
+                        onEditSettlement(t);
+                    } else if (!isSettlement && onEditTransaction) {
+                        onEditTransaction(t);
+                    }
+                };
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: '800', fontSize: '1.25rem' }}>
-                                {formatMoney(t.amount)}
+                return (
+                    <div
+                        key={t.id}
+                        className="card card-interactive"
+                        style={{
+                            padding: '0.95rem 1.25rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '1rem',
+                            borderLeft: `3px solid ${isSettlement ? 'hsl(var(--color-success))' : (group?.color || 'hsl(var(--color-accent))')}`
+                        }}
+                        onClick={handleClick}
+                    >
+                        {/* Left: Icon & Description */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: 0 }}>
+                            <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: 'var(--radius-md)',
+                                background: isSettlement ? 'hsl(var(--color-success) / 0.12)' : 'hsl(var(--color-accent) / 0.12)',
+                                color: isSettlement ? 'hsl(var(--color-success))' : 'hsl(var(--color-accent))',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                            }}>
+                                {isSettlement ? <HandCoins size={18} /> : <Receipt size={18} />}
                             </div>
-                            {showMemberShare && t.type === 'EXPENSE' && (
-                                <div style={{ fontSize: '0.75rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.25rem' }}>
-                                    {t.memberPaidAmount > 0 && (
-                                        <div style={{ color: 'hsl(var(--color-success))' }}>
-                                            Paid: {formatMoney(t.memberPaidAmount)}
-                                        </div>
-                                    )}
-                                    {t.memberOwedAmount > 0 && (
-                                        <div style={{ color: 'hsl(var(--color-danger))' }}>
-                                            Owed: {formatMoney(t.memberOwedAmount)}
-                                        </div>
+
+                            <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.15rem' }}>
+                                    <span style={{ fontWeight: 700, fontSize: '0.96rem', color: 'hsl(var(--color-text-main))' }}>
+                                        {t.description}
+                                    </span>
+                                    {group && (
+                                        <span style={{
+                                            fontSize: '0.7rem',
+                                            fontWeight: 700,
+                                            padding: '0.1rem 0.5rem',
+                                            borderRadius: 'var(--radius-full)',
+                                            background: `${group.color || '#10b981'}15`,
+                                            color: group.color || '#10b981',
+                                            border: `1px solid ${group.color || '#10b981'}30`,
+                                        }}>
+                                            {group.name}
+                                        </span>
                                     )}
                                 </div>
+
+                                <div style={{ fontSize: '0.8rem', color: 'hsl(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                    <span>{formatDateTime(t.date)}</span>
+                                    <span>•</span>
+                                    {isSettlement ? (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <strong>{getUserName(t.from)}</strong>
+                                            <ArrowRight size={12} />
+                                            <strong>{getUserName(t.to)}</strong>
+                                        </span>
+                                    ) : (
+                                        <span>
+                                            {t.payers.length === 1 ? `Paid by ${getUserName(t.payers[0].userId)}` : `${t.payers.length} payers`}
+                                            {t.collectorId && (
+                                                <span style={{ marginLeft: '0.35rem', color: 'hsl(var(--color-accent))', fontWeight: 600 }}>
+                                                    • Collector: {getUserName(t.collectorId)}
+                                                </span>
+                                            )}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right: Amount & Actions */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexShrink: 0 }}>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{
+                                    fontWeight: 800,
+                                    fontSize: '1.2rem',
+                                    color: isSettlement ? 'hsl(var(--color-success))' : 'hsl(var(--color-text-main))'
+                                }}>
+                                    {formatMoney(t.amount)}
+                                </div>
+                                {showMemberShare && !isSettlement && (
+                                    <div style={{ fontSize: '0.75rem', marginTop: '0.15rem' }}>
+                                        {t.memberPaidAmount > 0 && (
+                                            <span style={{ color: 'hsl(var(--color-success))', marginRight: '0.4rem' }}>
+                                                Paid: {formatMoney(t.memberPaidAmount)}
+                                            </span>
+                                        )}
+                                        {t.memberOwedAmount > 0 && (
+                                            <span style={{ color: 'hsl(var(--color-danger))' }}>
+                                                Owes: {formatMoney(t.memberOwedAmount)}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {(onEditTransaction || onEditSettlement) && (
+                                <button
+                                    type="button"
+                                    onClick={handleEditClick}
+                                    className="btn-icon"
+                                    title="Edit"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
                             )}
                         </div>
-                        {t.type === 'EXPENSE' && (
-                            <>
-                                {onViewTransaction && (
-                                    <button
-                                        onClick={() => onViewTransaction(t)}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: 'hsl(var(--color-accent))',
-                                            cursor: 'pointer',
-                                            padding: '0.5rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            borderRadius: 'var(--radius-sm)',
-                                            transition: 'background var(--transition-fast)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                        title="View details"
-                                    >
-                                        <Eye size={18} />
-                                    </button>
-                                )}
-                                {onEditTransaction && (
-                                    <button
-                                        onClick={() => onEditTransaction(t)}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: 'hsl(var(--color-primary))',
-                                            cursor: 'pointer',
-                                            padding: '0.5rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            borderRadius: 'var(--radius-sm)',
-                                            transition: 'background var(--transition-fast)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                        title="Edit expense"
-                                    >
-                                        <Edit2 size={18} />
-                                    </button>
-                                )}
-                            </>
-                        )}
-                        {t.type === 'SETTLEMENT' && (
-                            <>
-                                {onViewSettlement && (
-                                    <button
-                                        onClick={() => onViewSettlement(t)}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: 'hsl(var(--color-accent))',
-                                            cursor: 'pointer',
-                                            padding: '0.5rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            borderRadius: 'var(--radius-sm)',
-                                            transition: 'background var(--transition-fast)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                        title="View Details"
-                                    >
-                                        <Eye size={18} />
-                                    </button>
-                                )}
-                                {onEditSettlement && (
-                                    <button
-                                        onClick={() => onEditSettlement(t)}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: 'hsl(var(--color-primary))',
-                                            cursor: 'pointer',
-                                            padding: '0.5rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            borderRadius: 'var(--radius-sm)',
-                                            transition: 'background var(--transition-fast)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--color-bg))'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                        title="Edit Settlement"
-                                    >
-                                        <Edit2 size={18} />
-                                    </button>
-                                )}
-                            </>
-                        )}
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }

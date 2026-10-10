@@ -1,27 +1,34 @@
 :root {
-  /* Premium Color Palette */
-  --color-primary: 220 50% 10%;
-  /* Deep Navy Blue */
-  --color-primary-light: 220 40% 20%;
-  /* Lighter Navy */
+  /* Brand Identity - Vibrant Modern Emerald & Teal */
+  --color-primary: 222 47% 11%;
+  --color-primary-light: 222 35% 20%;
+  
   --color-accent: 160 84% 39%;
-  /* Fresh Teal */
-  --color-accent-hover: 160 84% 30%;
-  --color-danger: 0 84% 60%;
-  --color-warning: 35 90% 60%;
-  --color-success: 145 65% 45%;
+  --color-accent-hover: 160 84% 32%;
+  --color-accent-soft: 160 84% 96%;
+  --color-accent-text: 160 84% 28%;
 
-  /* Backgrounds */
-  --color-bg: 220 30% 98%;
-  /* Very light cool gray */
+  --color-danger: 350 89% 60%;
+  --color-danger-soft: 350 100% 97%;
+  --color-danger-text: 350 89% 45%;
+
+  --color-warning: 38 92% 50%;
+  --color-warning-soft: 48 100% 96%;
+
+  --color-success: 152 76% 40%;
+  --color-success-soft: 152 80% 96%;
+
+  /* Light Theme Surfaces & Text */
+  --color-bg: 210 40% 98%;
   --color-surface: 0 0% 100%;
-  /* White */
-  --color-surface-dim: 220 20% 96%;
-  /* Slightly darker surface for inputs/sections */
+  --color-surface-dim: 210 25% 95%;
+  --color-surface-elevated: 0 0% 100%;
+  --color-border: 214 32% 91%;
+  --color-border-subtle: 214 32% 94%;
 
-  /* Text */
-  --color-text-main: 220 40% 15%;
-  --color-text-muted: 220 20% 45%;
+  --color-text-main: 222 47% 11%;
+  --color-text-muted: 215 16% 47%;
+  --color-text-subtle: 215 16% 62%;
   --color-text-inverted: 0 0% 100%;
 
   /* Spacing */
@@ -32,44 +39,72 @@
   --spacing-xl: 2.5rem;
 
   /* Typography */
-  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  
+  --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
-  --font-size-lg: 1.25rem;
-  --font-size-xl: 1.75rem;
-  --font-size-xxl: 2.5rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-xxl: 2rem;
+  --font-size-3xl: 2.5rem;
 
-  /* Radius & Shadows */
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1.25rem;
+  /* Radius */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
 
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  /* Shadows with modern ambient occlusion */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 8px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --shadow-lg: 0 12px 24px -4px rgb(0 0 0 / 0.1), 0 4px 8px -4px rgb(0 0 0 / 0.06);
+  --shadow-xl: 0 20px 32px -6px rgb(0 0 0 / 0.14), 0 8px 12px -6px rgb(0 0 0 / 0.08);
+  --shadow-glow: 0 0 20px -2px rgba(16, 185, 129, 0.35);
 
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: 222 47% 11%;
-    /* Dark Blue BG */
-    --color-surface: 217 33% 17%;
-    /* Lighter Blue Surface */
-    --color-surface-dim: 215 28% 14%;
-    /* Darker surface for inputs */
+    /* Sleek Deep Slate / Midnight Dark Theme */
+    --color-bg: 222 47% 7%;
+    --color-surface: 222 40% 11%;
+    --color-surface-dim: 222 35% 9%;
+    --color-surface-elevated: 222 38% 14%;
+    --color-border: 222 25% 18%;
+    --color-border-subtle: 222 25% 14%;
 
     --color-primary: 210 40% 98%;
-    /* White/Light Blue for primary text in dark mode */
-    --color-primary-light: 210 40% 90%;
+    --color-primary-light: 210 30% 90%;
+
+    --color-accent: 160 84% 45%;
+    --color-accent-hover: 160 84% 38%;
+    --color-accent-soft: 160 50% 12%;
+    --color-accent-text: 160 80% 65%;
+
+    --color-danger-soft: 350 40% 14%;
+    --color-danger-text: 350 89% 70%;
+
+    --color-success-soft: 152 40% 14%;
 
     --color-text-main: 210 40% 98%;
-    --color-text-muted: 215 20% 70%;
-    /* Lighter muted text */
-    --color-text-inverted: 222 47% 11%;
+    --color-text-muted: 215 20% 68%;
+    --color-text-subtle: 215 15% 48%;
+    --color-text-inverted: 222 47% 8%;
+
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 6px 12px -2px rgb(0 0 0 / 0.6), 0 3px 6px -3px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 16px 28px -6px rgb(0 0 0 / 0.7), 0 6px 10px -6px rgb(0 0 0 / 0.5);
+    --shadow-xl: 0 24px 38px -8px rgb(0 0 0 / 0.8);
+    --shadow-glow: 0 0 24px -2px rgba(16, 185, 129, 0.45);
   }
 }

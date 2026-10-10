@@ -4,11 +4,23 @@ A modern, feature-rich web application for managing shared expenses in group tri
 
 ## ✨ Features
 
+### 👥 Multiple Groups (Splitwise-style)
+- **Unlimited groups**: Create and manage distinct groups for trips, roommates, projects, events, and couples
+- **App-Wide Group Scoping**: Selecting any group automatically scopes all main tabs (Dashboard, Expenses, Balances, Settlements, Members, History) specifically to that group
+- **Group Scope Banner**: Persistent sticky banner across views with active group indicators, member count, user net balance, 1-click group switcher, "Settle Up" shortcut, and "View All" reset
+- **Splitwise-inspired UI**: Group cards with faceted geometric vector badges, individual status badges, and member debt breakdowns
+- **Per-group balances**: Real-time balance calculations, simplified debt graphs, and direct settlements inside each group
+- **Group settle-up**: One-click quick debt settlement or custom payments within a specific group
+- **Group member management**: Add/remove members per group, with inline quick-member creation
+- **Non-group expenses**: Separate tracking for one-off personal expenses between friends
+- **User perspective switcher**: Easily switch between users to see what "You owe" or "You are owed" from any member's perspective
+
 ### 💰 Expense Management
 - **Multi-payer support**: Track expenses with multiple people paying different amounts
 - **Flexible splitting**: Split expenses equally, by exact amounts, or by custom percentages
-- **Detailed tracking**: View complete expense history with search and sorting
-- **Transaction history**: See all expenses and settlements in one place
+- **Group integration**: Assign expenses directly to groups or non-group with automatic member filtering
+- **Detailed tracking**: View complete expense history with search, group filter, and sorting
+- **Transaction history**: See all expenses and settlements in one place with group badges
 
 ### 👥 Member Management
 - **Easy member addition**: Quickly add group members
@@ -74,6 +86,12 @@ The production-ready files will be in the `dist` directory.
 
 ## 🎯 Usage
 
+### Working with Groups
+1. Navigate to the **Groups** tab to view your groups or create a new one.
+2. Click **Select Group** on any group card (e.g. "Trip to Goa" or "Apartment 402").
+3. Notice that **all tabs** (Dashboard, Expenses, Balances, Settlements, Members) now display **only** the data for that selected group.
+4. Use the top **Group Scope Banner** to switch groups at any time or click **View All** to return to the overall multi-group view.
+
 ### Adding Members
 1. Navigate to the **Members** tab
 2. Enter member names and click the add button
@@ -132,6 +150,12 @@ expense-manager/
 │   │   ├── MembersView.jsx
 │   │   ├── MemberDetail.jsx
 │   │   ├── BalancesView.jsx
+│   │   ├── GroupsView.jsx
+│   │   ├── GroupDetailView.jsx
+│   │   ├── GroupScopeBanner.jsx
+│   │   ├── GroupCardBanner.jsx
+│   │   ├── GroupFormModal.jsx
+│   │   ├── GroupSettleUpModal.jsx
 │   │   ├── TransactionList.jsx
 │   │   ├── Settings.jsx
 │   │   ├── UserList.jsx
