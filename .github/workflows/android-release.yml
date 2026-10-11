@@ -34,14 +34,14 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Setup Java 21 (Temurin)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -93,7 +93,7 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Sync Capacitor Android
-        run: npx cap sync android
+        run: npm run cap:sync
 
       - name: Setup Android Keystore (if secrets provided)
         id: setup-keystore
