@@ -196,6 +196,79 @@ The application uses a comprehensive design system with:
 - No multi-device sync (use export/import to transfer data)
 - Currency rates are not automatically converted
 
+## 📱 Android App & Release Builds
+
+SplitIt includes first-class Android support powered by Capacitor. You can generate both installable **APK** files and Google Play **AAB** (Android App Bundle) release packages.
+
+### 🛠️ Local Android Commands
+
+- **Build APK & Bundle (All)**:
+  ```bash
+  npm run android:build
+  ```
+- **Build Release APK only**:
+  ```bash
+  npm run android:build:apk
+  ```
+- **Build Release Bundle (AAB) only**:
+  ```bash
+  npm run android:build:bundle
+  ```
+- **Open in Android Studio**:
+  ```bash
+  npm run cap:open
+  ```
+- **Sync web build to native Android project**:
+  ```bash
+  npm run android:sync
+  ```
+
+Artifact outputs:
+- Release APK: `android/app/build/outputs/apk/release/app-release.apk`
+- Release AAB: `android/app/build/outputs/bundle/release/app-release.aab`
+
+### 🔑 Signing Configuration
+
+- **Development / Sideloading**: Release builds work out-of-the-box with automatic signing fallbacks, allowing immediate testing and installation on real devices and emulators.
+- **Production Key Generation**:
+  Generate an official release keystore and get the exact Base64 string for GitHub Secrets:
+  ```bash
+  npm run keystore:generate
+  ```
+- **Local `keystore.properties`**: You can place `android/keystore.properties` (git-ignored) with:
+  ```properties
+  storeFile=release.keystore
+  storePassword=YOUR_PASSWORD
+  keyAlias=YOUR_ALIAS
+  keyPassword=YOUR_PASSWORD
+  ```
+
+### 🤖 GitHub Actions CI/CD Pipeline
+
+A production-ready GitHub Actions workflow is located at `.github/workflows/android-release.yml`.
+
+#### How to Trigger Builds in CI:
+1. **Push a Release Tag**:
+   Pushing any tag matching `v*` (e.g., `git tag v1.0.0 && git push origin v1.0.0`) automatically:
+   - Builds both the Release APK and AAB Bundle.
+   - Uploads them as GitHub workflow run artifacts (30 days retention).
+   - Creates a **GitHub Release** with `SplitIt-release.apk` and `SplitIt-release.aab` attached and release notes auto-generated.
+2. **Push to `main`**:
+   Builds and uploads APK & AAB artifacts on every push to `main`.
+3. **Manual Trigger (`workflow_dispatch`)**:
+   Run manually under the **Actions** tab on GitHub with optional flags:
+   - `publish_release`: Create a GitHub Release directly
+   - `release_tag`: Custom tag name (e.g. `v1.0.1`)
+
+#### Production Signing Secrets (GitHub Repository):
+Under repository **Settings** &rarr; **Secrets and variables** &rarr; **Actions**, configure:
+- `ANDROID_KEYSTORE_BASE64`: Base64 encoded keystore string (generated via `npm run keystore:generate`).
+- `KEYSTORE_PASSWORD`: Keystore password.
+- `KEY_ALIAS`: Key alias.
+- `KEY_PASSWORD`: Key alias password.
+
+*(If secrets are not yet added, the CI workflow continues smoothly using fallback signing, so runs never fail).*
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

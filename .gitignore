@@ -26,3 +26,14 @@ dist-ssr
 # Patches and temp files
 *.patch
 original_*
+
+# Android & Keystores
+*.keystore
+*.jks
+*.bak
+keystore.properties
+keystore-base64.txt
+android/.gradle
+android/build
+android/app/build
+

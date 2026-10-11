@@ -379,7 +379,6 @@ function NavigationBar() {
 }
 
 function ExpenseApp() {
-    const { selectedGroupId } = useExpenses();
     const location = useLocation();
     const [viewingTransaction, setViewingTransaction] = useState(null);
     const [viewingSettlement, setViewingSettlement] = useState(null);
