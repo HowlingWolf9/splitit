@@ -1,6 +1,10 @@
 # SplitIt - Group Expense Manager
 
-A modern, feature-rich web application for managing shared expenses in group trips, roommate situations, or any shared financial activities.
+[![Add to Obtainium](https://img.shields.io/badge/Obtainium-Add_App-3DDC84?style=for-the-badge&logo=android&logoColor=white)](obtainium://app/add/https://github.com/HowlingWolf9/splitit)
+[![Latest Release](https://img.shields.io/github/v/release/HowlingWolf9/splitit?style=for-the-badge&logo=github&color=3b82f6)](https://github.com/HowlingWolf9/splitit/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
+A modern, feature-rich web and mobile application for managing shared expenses in group trips, roommate situations, or any shared financial activities.
 
 ## ✨ Features
 
@@ -199,6 +203,28 @@ The application uses a comprehensive design system with:
 ## 📱 Android App & Release Builds
 
 SplitIt includes first-class Android support powered by Capacitor. You can generate both installable **APK** files and Google Play **AAB** (Android App Bundle) release packages.
+
+### 📲 Install & Auto-Update via Obtainium
+
+[Obtainium](https://github.com/ImranR98/Obtainium) allows you to install and receive automatic, seamless background updates directly from GitHub Releases.
+
+<p align="left">
+  <a href="obtainium://app/add/https://github.com/HowlingWolf9/splitit">
+    <img src="https://img.shields.io/badge/Obtainium-Add_App-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Add to Obtainium" />
+  </a>
+</p>
+
+- **1-Click Deep Link**: If Obtainium is installed on your Android device, tap:  
+  👉 **[`obtainium://app/add/https://github.com/HowlingWolf9/splitit`](obtainium://app/add/https://github.com/HowlingWolf9/splitit)**
+- **Scan QR Code**: Scan from your mobile camera to open in Obtainium:  
+  <br/>
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=obtainium://app/add/https://github.com/HowlingWolf9/splitit" alt="Scan to add in Obtainium" width="150" />
+- **Manual Setup in Obtainium**:
+  1. Open Obtainium and tap **Add App**.
+  2. Enter App Source URL: `https://github.com/HowlingWolf9/splitit`
+  3. (Optional) Filter APK: `SplitIt-release\.apk`
+  4. Tap **Add** &rarr; Obtainium will download `SplitIt-release.apk` and notify you of new releases automatically!
+- **Pre-configured Import File**: You can also import [`obtainium.json`](obtainium.json) via Obtainium's **Import/Export** menu.
 
 ### 🛠️ Local Android Commands
 

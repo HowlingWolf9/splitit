@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { Settings as SettingsIcon, Download, Upload, Check, AlertCircle, Database, Coins } from 'lucide-react';
+import { Settings as SettingsIcon, Download, Upload, Check, AlertCircle, Database, Coins, Smartphone, ExternalLink } from 'lucide-react';
 
 export default function Settings() {
     const { state, setCurrency, currencies, exportData, importData } = useExpenses();
@@ -175,6 +175,39 @@ export default function Settings() {
                             onChange={handleFileChange}
                             style={{ display: 'none' }}
                         />
+                    </div>
+                </div>
+
+                {/* Android App Updates & Obtainium */}
+                <div style={{ paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <Smartphone size={16} style={{ color: 'hsl(var(--color-accent))' }} />
+                        <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Android Updates & Obtainium</label>
+                    </div>
+                    <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
+                        Install and receive automatic background updates for SplitIt directly from GitHub Releases using Obtainium.
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <a
+                            href="obtainium://app/add/https://github.com/HowlingWolf9/splitit"
+                            className="btn btn-primary btn-sm"
+                            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <Smartphone size={15} />
+                            <span>Add to Obtainium</span>
+                        </a>
+
+                        <a
+                            href="https://github.com/HowlingWolf9/splitit/releases/latest"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary btn-sm"
+                            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <ExternalLink size={15} />
+                            <span>GitHub Releases</span>
+                        </a>
                     </div>
                 </div>
             </div>
