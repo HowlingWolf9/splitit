@@ -209,16 +209,20 @@ SplitIt includes first-class Android support powered by Capacitor. You can gener
 [Obtainium](https://github.com/ImranR98/Obtainium) allows you to install and receive automatic, seamless background updates directly from GitHub Releases.
 
 <p align="left">
-  <a href="obtainium://app/add/https://github.com/HowlingWolf9/splitit">
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.splitit.expensemanager%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252FHowlingWolf9%252Fsplitit%2522%252C%2522author%2522%253A%2522HowlingWolf9%2522%252C%2522name%2522%253A%2522SplitIt%2522%257D">
     <img src="https://img.shields.io/badge/Obtainium-Add_App-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Add to Obtainium" />
   </a>
 </p>
 
-- **1-Click Deep Link**: If Obtainium is installed on your Android device, tap:  
-  👉 **[`obtainium://app/add/https://github.com/HowlingWolf9/splitit`](obtainium://app/add/https://github.com/HowlingWolf9/splitit)**
-- **Scan QR Code**: Scan from your mobile camera to open in Obtainium:  
+- **1-Click Install (with Web Fallback)**:  
+  👉 **[Add to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.splitit.expensemanager%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252FHowlingWolf9%252Fsplitit%2522%252C%2522author%2522%253A%2522HowlingWolf9%2522%252C%2522name%2522%253A%2522SplitIt%2522%257D)**  
+  *(Opens Obtainium directly if installed; otherwise prompts to download Obtainium)*
+- **Direct URI Schemes**:
+  - Add Single App: [`obtainium://add/https://github.com/HowlingWolf9/splitit`](obtainium://add/https://github.com/HowlingWolf9/splitit)
+  - Full App Config: `obtainium://app/%7B%22id%22%3A%22com.splitit.expensemanager%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FHowlingWolf9%2Fsplitit%22%2C%22author%22%3A%22HowlingWolf9%22%2C%22name%22%3A%22SplitIt%22%7D`
+- **Scan QR Code**: Scan with your mobile camera to open in Obtainium:  
   <br/>
-  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=obtainium://app/add/https://github.com/HowlingWolf9/splitit" alt="Scan to add in Obtainium" width="150" />
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https%3A%2F%2Fapps.obtainium.imranr.dev%2Fredirect%3Fr%3Dobtainium%253A%252F%252Fapp%252F%25257B%252522id%252522%25253A%252522com.splitit.expensemanager%252522%25252C%252522url%252522%25253A%252522https%25253A%25252F%25252Fgithub.com%25252FHowlingWolf9%25252Fsplitit%252522%25252C%252522author%252522%25253A%252522HowlingWolf9%252522%25252C%252522name%252522%25253A%252522SplitIt%252522%25257D" alt="Scan to add in Obtainium" width="150" />
 - **Manual Setup in Obtainium**:
   1. Open Obtainium and tap **Add App**.
   2. Enter App Source URL: `https://github.com/HowlingWolf9/splitit`

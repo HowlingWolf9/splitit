@@ -1,11 +1,8 @@
-{
-  "apps": [
-    {
-      "id": "com.splitit.expensemanager",
-      "url": "https://github.com/HowlingWolf9/splitit",
-      "author": "HowlingWolf9",
-      "name": "SplitIt",
-      "apkFilter": "SplitIt-release\\.apk"
-    }
-  ]
-}
+[
+  {
+    "id": "com.splitit.expensemanager",
+    "url": "https://github.com/HowlingWolf9/splitit",
+    "author": "HowlingWolf9",
+    "name": "SplitIt"
+  }
+]

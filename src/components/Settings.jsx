@@ -190,7 +190,9 @@ export default function Settings() {
 
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         <a
-                            href="obtainium://app/add/https://github.com/HowlingWolf9/splitit"
+                            href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.splitit.expensemanager%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252FHowlingWolf9%252Fsplitit%2522%252C%2522author%2522%253A%2522HowlingWolf9%2522%252C%2522name%2522%253A%2522SplitIt%2522%257D"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="btn btn-primary btn-sm"
                             style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                         >
