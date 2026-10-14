@@ -41,15 +41,15 @@ import {
 function DashboardView({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement }) {
     const { filteredTransactions, selectedGroup } = useExpenses();
     return (
-        <div style={{ display: 'grid', gap: '1.75rem' }}>
+        <div style={{ display: 'grid', gap: '1.5rem', width: '100%', minWidth: 0 }}>
             <DashboardSummary />
-            <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <div style={{ width: '100%', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', minWidth: 0 }}>
                     <div>
-                        <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
+                        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'hsl(var(--color-text-main))' }}>
                             {selectedGroup ? `Recent Activity — ${selectedGroup.name}` : 'Recent Activity'}
                         </h2>
-                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))' }}>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
                             Latest expenses and settlements
                         </p>
                     </div>
@@ -131,29 +131,31 @@ function MobileTopAppBar() {
                         </h1>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flexShrink: 1 }}>
                         <NavLink
                             to="/dashboard"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', textDecoration: 'none' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', flexShrink: 0 }}
                         >
                             <div style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '9px',
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '8px',
                                 background: 'linear-gradient(135deg, hsl(var(--color-accent)), #06b6d4)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 color: 'white',
-                                boxShadow: 'var(--shadow-glow)'
+                                boxShadow: 'var(--shadow-glow)',
+                                flexShrink: 0
                             }}>
-                                <Sparkles size={17} />
+                                <Sparkles size={16} />
                             </div>
                             <span style={{
-                                fontSize: '1.2rem',
+                                fontSize: '1.15rem',
                                 fontWeight: '800',
                                 letterSpacing: '-0.5px',
-                                color: 'hsl(var(--color-text-main))'
+                                color: 'hsl(var(--color-text-main))',
+                                flexShrink: 0
                             }}>
                                 SplitIt
                             </span>
@@ -167,10 +169,11 @@ function MobileTopAppBar() {
                                 background: `${selectedGroup.color || '#10b981'}20`,
                                 color: selectedGroup.color || '#10b981',
                                 border: `1px solid ${selectedGroup.color || '#10b981'}35`,
-                                maxWidth: '110px',
+                                maxWidth: '90px',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
+                                whiteSpace: 'nowrap',
+                                flexShrink: 1
                             }}>
                                 {selectedGroup.name}
                             </span>
@@ -179,7 +182,7 @@ function MobileTopAppBar() {
                 )}
 
                 {/* Right Top Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
                     <button
                         type="button"
                         onClick={() => setPerspectiveSheetOpen(true)}
@@ -683,7 +686,7 @@ function ExpenseApp() {
         !location.pathname.startsWith('/groups/');
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
             {/* Desktop Navigation */}
             <DesktopNavigationBar />
 

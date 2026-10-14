@@ -114,11 +114,7 @@ export default function DashboardSummary() {
     ];
 
     return (
-        <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '1rem'
-        }}>
+        <div className="dashboard-summary-grid">
             {stats.map((stat, index) => {
                 const Icon = stat.icon;
                 return (
@@ -126,56 +122,74 @@ export default function DashboardSummary() {
                         key={index}
                         className="card card-interactive"
                         style={{
-                            padding: '1.25rem',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.75rem',
+                            gap: '0.65rem',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            minWidth: 0,
+                            width: '100%'
                         }}
                     >
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'space-between'
+                            justifyContent: 'space-between',
+                            minWidth: 0,
+                            gap: '0.4rem'
                         }}>
                             <span style={{
-                                fontSize: '0.78rem',
+                                fontSize: '0.74rem',
                                 color: 'hsl(var(--color-text-muted))',
                                 fontWeight: 700,
                                 textTransform: 'uppercase',
-                                letterSpacing: '0.5px'
+                                letterSpacing: '0.5px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                                flex: 1
                             }}>
                                 {stat.label}
                             </span>
                             <div style={{
-                                width: '36px',
-                                height: '36px',
+                                width: '32px',
+                                height: '32px',
                                 borderRadius: 'var(--radius-md)',
                                 background: `${stat.accent}15`,
                                 color: stat.accent,
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                justifyContent: 'center',
+                                flexShrink: 0
                             }}>
-                                <Icon size={18} />
+                                <Icon size={16} />
                             </div>
                         </div>
 
-                        <div>
-                            <div style={{
-                                fontSize: '1.75rem',
-                                fontWeight: 800,
-                                color: stat.accent,
-                                lineHeight: 1.15,
-                                letterSpacing: '-0.5px'
-                            }}>
+                        <div style={{ minWidth: 0 }}>
+                            <div
+                                className="kpi-value"
+                                style={{
+                                    fontSize: '1.65rem',
+                                    fontWeight: 800,
+                                    color: stat.accent,
+                                    lineHeight: 1.15,
+                                    letterSpacing: '-0.5px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                }}
+                            >
                                 {stat.value}
                             </div>
                             <div style={{
-                                fontSize: '0.78rem',
+                                fontSize: '0.74rem',
                                 color: 'hsl(var(--color-text-muted))',
-                                marginTop: '0.35rem'
+                                marginTop: '0.25rem',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
                             }}>
                                 {stat.sub}
                             </div>

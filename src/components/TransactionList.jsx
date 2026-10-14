@@ -75,20 +75,22 @@ export default function TransactionList({
                         key={t.id}
                         className="card card-interactive"
                         style={{
-                            padding: '0.95rem 1.25rem',
+                            padding: '0.9rem 1.1rem',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            gap: '1rem',
+                            gap: '0.75rem',
+                            width: '100%',
+                            minWidth: 0,
                             borderLeft: `3px solid ${isSettlement ? 'hsl(var(--color-success))' : (group?.color || 'hsl(var(--color-accent))')}`
                         }}
                         onClick={handleClick}
                     >
                         {/* Left: Icon & Description */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
                             <div style={{
-                                width: '38px',
-                                height: '38px',
+                                width: '36px',
+                                height: '36px',
                                 borderRadius: 'var(--radius-md)',
                                 background: isSettlement ? 'hsl(var(--color-success) / 0.12)' : 'hsl(var(--color-accent) / 0.12)',
                                 color: isSettlement ? 'hsl(var(--color-success))' : 'hsl(var(--color-accent))',
@@ -97,40 +99,47 @@ export default function TransactionList({
                                 justifyContent: 'center',
                                 flexShrink: 0
                             }}>
-                                {isSettlement ? <HandCoins size={18} /> : <Receipt size={18} />}
+                                {isSettlement ? <HandCoins size={17} /> : <Receipt size={17} />}
                             </div>
 
-                            <div style={{ minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.15rem' }}>
-                                    <span style={{ fontWeight: 700, fontSize: '0.96rem', color: 'hsl(var(--color-text-main))' }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.15rem', minWidth: 0 }}>
+                                    <span style={{
+                                        fontWeight: 700,
+                                        fontSize: '0.95rem',
+                                        color: 'hsl(var(--color-text-main))',
+                                        wordBreak: 'break-word',
+                                        overflowWrap: 'anywhere'
+                                    }}>
                                         {t.description}
                                     </span>
                                     {group && (
                                         <span style={{
-                                            fontSize: '0.7rem',
+                                            fontSize: '0.68rem',
                                             fontWeight: 700,
-                                            padding: '0.1rem 0.5rem',
+                                            padding: '0.1rem 0.45rem',
                                             borderRadius: 'var(--radius-full)',
                                             background: `${group.color || '#10b981'}15`,
                                             color: group.color || '#10b981',
                                             border: `1px solid ${group.color || '#10b981'}30`,
+                                            flexShrink: 0
                                         }}>
                                             {group.name}
                                         </span>
                                     )}
                                 </div>
 
-                                <div style={{ fontSize: '0.8rem', color: 'hsl(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', minWidth: 0 }}>
                                     <span>{formatDateTime(t.date)}</span>
                                     <span>•</span>
                                     {isSettlement ? (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', minWidth: 0 }}>
                                             <strong>{getUserName(t.from)}</strong>
                                             <ArrowRight size={12} />
                                             <strong>{getUserName(t.to)}</strong>
                                         </span>
                                     ) : (
-                                        <span>
+                                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {t.payers.length === 1 ? `Paid by ${getUserName(t.payers[0].userId)}` : `${t.payers.length} payers`}
                                             {t.collectorId && (
                                                 <span style={{ marginLeft: '0.35rem', color: 'hsl(var(--color-accent))', fontWeight: 600 }}>
@@ -144,17 +153,18 @@ export default function TransactionList({
                         </div>
 
                         {/* Right: Amount & Actions */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
                             <div style={{ textAlign: 'right' }}>
                                 <div style={{
                                     fontWeight: 800,
-                                    fontSize: '1.2rem',
-                                    color: isSettlement ? 'hsl(var(--color-success))' : 'hsl(var(--color-text-main))'
+                                    fontSize: '1.15rem',
+                                    color: isSettlement ? 'hsl(var(--color-success))' : 'hsl(var(--color-text-main))',
+                                    whiteSpace: 'nowrap'
                                 }}>
                                     {formatMoney(t.amount)}
                                 </div>
                                 {showMemberShare && !isSettlement && (
-                                    <div style={{ fontSize: '0.75rem', marginTop: '0.15rem' }}>
+                                    <div style={{ fontSize: '0.72rem', marginTop: '0.15rem', whiteSpace: 'nowrap' }}>
                                         {t.memberPaidAmount > 0 && (
                                             <span style={{ color: 'hsl(var(--color-success))', marginRight: '0.4rem' }}>
                                                 Paid: {formatMoney(t.memberPaidAmount)}
