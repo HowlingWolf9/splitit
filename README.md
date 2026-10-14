@@ -49,10 +49,20 @@ A modern, feature-rich web and mobile application for managing shared expenses i
 - **Empty states**: Helpful messages when no data exists
 - **Error handling**: Graceful error management with user-friendly messages
 
+### ☁️ Zero-Server Cloud & Multi-User Sync
+- **Google Drive Cross-Device Sync**: 100% client-side sync using Google OAuth and private `appDataFolder` (`splitit_appdata_v1.json`) with zero backend servers and zero hosting costs.
+- **Encrypted Peer-to-Peer Multi-User Group Sync**: Shared groups synchronize peer-to-peer using end-to-end encrypted events over free public Nostr relays ($0 server cost). Relays only ever see opaque AES-GCM ciphertext.
+- **Cross-Platform Backup Import/Export**: One-click JSON backup export and import with native integration on Android (MediaStore Downloads + Share Sheet), Windows PC (Electron native Save/Open file dialogs), and modern Web browsers.
+
+### 📱 Native Android & Desktop PC Experience
+- **Native Android UI**: Capacitor integration with safe-area insets, fixed native bottom navigation with tactile active pills, and hardware back button stack handling.
+- **Windows PC Desktop App**: Standalone Electron app packaged into NSIS setup installer and zero-install portable `.exe`.
+- **Native Printing & PDF Export**: Native print spooler integration on Android (Android PrintManager) and Windows (Electron WebContents print bridge) with full color preservation and pagination break protection.
+
 ### 💾 Data Management
-- **Import/Export**: Backup and restore your data
-- **Local storage**: All data stored locally in browser
-- **Multiple currencies**: Support for 50+ currencies including USD, EUR, INR, GBP, and more
+- **Cross-Platform Import/Export**: Full JSON backup and restore with native file dialogs and broad MIME type handling.
+- **Local Persistence**: All data stored locally in browser `localStorage` / `%APPDATA%\SplitIt` with offline-first availability.
+- **Multiple Currencies**: Support for 50+ currencies including USD, EUR, INR, GBP, and more.
 
 ## 🚀 Getting Started
 
@@ -194,11 +204,12 @@ The application uses a comprehensive design system with:
 - **No account needed**: Use immediately without sign-up
 - **Export anytime**: Full data portability with JSON export
 
-## 🐛 Known Limitations
+## 💡 Storage & Sync Architecture
 
-- Data is browser-specific (clearing browser data will delete your expenses)
-- No multi-device sync (use export/import to transfer data)
-- Currency rates are not automatically converted
+- **Local-First & Offline-Ready**: All data is stored locally on device (`localStorage` on Web/Android, `%APPDATA%\SplitIt` on PC). The app functions 100% offline.
+- **Cross-Device Sync**: Connect Google Drive in Settings for zero-cost, serverless automatic backup and cross-device sync.
+- **Group Collaboration**: Shared groups synchronize peer-to-peer over public Nostr relays with end-to-end AES-GCM encryption.
+- **Currency Conversion**: SplitIt tracks expenses in your chosen base currency (50+ available). Multi-currency real-time exchange conversion can be supplemented via custom rate adjustment.
 
 ## 📱 Android App & Release Builds
 

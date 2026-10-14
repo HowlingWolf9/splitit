@@ -137,7 +137,7 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                     flexWrap: 'wrap',
                     gap: '0.75rem'
                 }}>
-                    <div>
+                    <div className="desktop-only-header">
                         <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
                             Expenses {selectedGroup ? `— ${selectedGroup.name}` : ''}
                         </h2>
@@ -332,22 +332,6 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                     </div>
                 </div>
             )}
-
-            {/* Floating Action Button */}
-            <div className="fab-container">
-                <button
-                    type="button"
-                    className="fab fab-primary"
-                    onClick={() => {
-                        setEditingTransaction(null);
-                        setShowForm(true);
-                    }}
-                    title="Add Expense"
-                >
-                    <Plus size={20} strokeWidth={2.5} />
-                    <span>Add Expense</span>
-                </button>
-            </div>
         </div>
     );
 }

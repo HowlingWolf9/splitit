@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs').promises;
 
 // Guarantee clean application name and AppData persistence for localStorage & IndexedDB
 app.name = 'SplitIt';
@@ -120,6 +121,59 @@ ipcMain.handle('splitit:print', async (event, title) => {
       }
     );
   });
+});
+
+// IPC handler for native Windows file export / backup save
+ipcMain.handle('splitit:save-file', async (event, { defaultFilename, content }) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const saveName = defaultFilename || `splitit-backup-${dateStr}.json`;
+
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Export SplitIt Backup',
+    defaultPath: saveName,
+    filters: [
+      { name: 'JSON Backup', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (!result.canceled && result.filePath) {
+    try {
+      await fs.writeFile(result.filePath, content, 'utf8');
+      return { success: true, filePath: result.filePath };
+    } catch (err) {
+      console.error('[SplitIt Electron] Error saving backup file:', err);
+      return { success: false, error: err.message };
+    }
+  }
+  return { success: false, canceled: true };
+});
+
+// IPC handler for native Windows file import / backup open
+ipcMain.handle('splitit:open-file', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Import SplitIt Backup',
+    filters: [
+      { name: 'JSON Backup (*.json)', extensions: ['json'] },
+      { name: 'Text / JSON Files', extensions: ['json', 'txt'] },
+      { name: 'All Files (*.*)', extensions: ['*'] }
+    ],
+    properties: ['openFile']
+  });
+
+  if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+    try {
+      const content = await fs.readFile(result.filePaths[0], 'utf8');
+      return { success: true, filePath: result.filePaths[0], content };
+    } catch (err) {
+      console.error('[SplitIt Electron] Error reading backup file:', err);
+      return { success: false, error: err.message };
+    }
+  }
+  return { success: false, canceled: true };
 });
 
 app.whenReady().then(() => {

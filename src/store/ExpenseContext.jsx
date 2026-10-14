@@ -288,6 +288,7 @@ function expenseReducer(state, action) {
                 transactions: state.transactions.map(t =>
                     t.id === action.payload.id
                         ? {
+                            ...t,
                             ...action.payload,
                             createdAt: t.createdAt || now,
                             updatedAt: now
@@ -1159,7 +1160,7 @@ export function ExpenseProvider({ children }) {
         }
     };
 
-    const addExpense = (description, amount, date, payers, splits, groupId = null, collectorId = null) => {
+    const addExpense = (description, amount, date, payers, splits, groupId = null, collectorId = null, extraMeta = {}) => {
         dispatch({
             type: ADD_TRANSACTION,
             payload: {
@@ -1172,11 +1173,16 @@ export function ExpenseProvider({ children }) {
                 date,
                 payers, // Array of { userId, amount }
                 splits, // Array of { userId, amount }
+                splitMode: extraMeta.splitMode || extraMeta.splitType || 'EQUAL',
+                splitType: extraMeta.splitType || extraMeta.splitMode?.toLowerCase() || 'equal',
+                splitShares: extraMeta.splitShares || null,
+                category: extraMeta.category || null,
+                ...extraMeta
             }
         });
     };
 
-    const updateExpense = (id, description, amount, date, payers, splits, groupId = null, collectorId = null) => {
+    const updateExpense = (id, description, amount, date, payers, splits, groupId = null, collectorId = null, extraMeta = {}) => {
         dispatch({
             type: UPDATE_TRANSACTION,
             payload: {
@@ -1189,6 +1195,11 @@ export function ExpenseProvider({ children }) {
                 date,
                 payers,
                 splits,
+                splitMode: extraMeta.splitMode || extraMeta.splitType || 'EQUAL',
+                splitType: extraMeta.splitType || extraMeta.splitMode?.toLowerCase() || 'equal',
+                splitShares: extraMeta.splitShares || null,
+                category: extraMeta.category || null,
+                ...extraMeta
             }
         });
     };

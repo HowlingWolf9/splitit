@@ -575,7 +575,7 @@ export default function BalancesView() {
                         flexWrap: 'wrap',
                         gap: '0.75rem'
                     }}>
-                        <div>
+                        <div className="desktop-only-header">
                             <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
                                 Balances & Settlements {selectedGroup ? `— ${selectedGroup.name}` : ''}
                             </h2>

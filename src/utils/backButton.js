@@ -5,13 +5,26 @@ import { Capacitor } from '@capacitor/core';
 // Stack of active modal / bottom-sheet close callbacks (LIFO)
 const modalStack = [];
 
+function updateBodyScrollLock() {
+    if (typeof document === 'undefined') return;
+    if (modalStack.length > 0) {
+        document.body.classList.add('modal-open');
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+    }
+}
+
 export function registerBackAction(closeFn) {
     if (typeof closeFn !== 'function') return () => {};
     modalStack.push(closeFn);
+    updateBodyScrollLock();
     return () => {
         const index = modalStack.lastIndexOf(closeFn);
         if (index !== -1) {
             modalStack.splice(index, 1);
+            updateBodyScrollLock();
         }
     };
 }
@@ -19,6 +32,7 @@ export function registerBackAction(closeFn) {
 export function popBackAction() {
     if (modalStack.length > 0) {
         const closeTop = modalStack.pop();
+        updateBodyScrollLock();
         if (typeof closeTop === 'function') {
             closeTop();
             return true;

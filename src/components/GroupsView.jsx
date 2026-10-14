@@ -124,8 +124,18 @@ export default function GroupsView() {
                     </div>
                 </div>
 
-                {/* Primary Action Button (Single canonical + New Group CTA) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {/* Primary Action Buttons (Canonical desktop/tablet toolbar) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowCreateGroupModal(true)}
+                        className="btn btn-primary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        title="Create a new group"
+                    >
+                        <Plus size={15} />
+                        <span>New Group</span>
+                    </button>
                     <button
                         type="button"
                         onClick={() => setShowJoinModal(true)}
@@ -438,20 +448,6 @@ export default function GroupsView() {
                     }}
                 />
             )}
-
-
-            {/* Floating Action Button */}
-            <div className="fab-container">
-                <button
-                    type="button"
-                    className="fab fab-primary"
-                    onClick={() => setShowCreateGroupModal(true)}
-                    title="New Group"
-                >
-                    <Plus size={20} strokeWidth={2.5} />
-                    <span>New Group</span>
-                </button>
-            </div>
         </div>
     );
 }

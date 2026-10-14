@@ -22,25 +22,12 @@ const setStorageItem = (key, val) => {
     }
 };
 
-export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = null, defaultGroupId = null }) {
+export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = null, defaultGroupId = null, initialData = null, editingExpense = null }) {
     useModalBackHandler(true, onCancel);
     const { state, addExpense, updateExpense, addUser, deleteTransaction } = useExpenses();
-    const isEditing = !!editingTransaction;
+    const expenseToEdit = editingTransaction || editingExpense || initialData;
+    const isEditing = !!expenseToEdit;
     const descInputRef = useRef(null);
-
-    // Group Selection with memory
-    const [selectedGroupId, setSelectedGroupId] = useState(() => {
-        if (editingTransaction) return editingTransaction.groupId || '';
-        if (defaultGroupId) return defaultGroupId;
-        if (state.selectedGroupId && state.selectedGroupId !== 'non-group') return state.selectedGroupId;
-        const saved = getStorageItem('splitit_last_expense_group');
-        if (saved && (state.groups || []).some(g => g.id === saved)) return saved;
-        return '';
-    });
-    const [showAllUsers, setShowAllUsers] = useState(false);
-
-    const [desc, setDesc] = useState(editingTransaction?.description || '');
-    const [amount, setAmount] = useState(editingTransaction?.amount?.toString() || '');
 
     const formatDateTimeLocal = (date) => {
         const d = new Date(date);
@@ -52,8 +39,157 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
 
+    // Helper extractors for robust hydration when editing
+    const extractPayerMode = (exp) => {
+        if (!exp) {
+            const saved = getStorageItem('splitit_last_expense_payermode');
+            return saved || 'SINGLE';
+        }
+        if (Array.isArray(exp.payers) && exp.payers.length > 1) return 'MULTI';
+        if (exp.paidBy && typeof exp.paidBy === 'object' && Object.keys(exp.paidBy).length > 1) return 'MULTI';
+        return 'SINGLE';
+    };
+
+    const extractSinglePayer = (exp, userList) => {
+        if (exp) {
+            if (Array.isArray(exp.payers) && exp.payers[0]?.userId) {
+                return exp.payers[0].userId;
+            }
+            if (typeof exp.paidBy === 'string' && exp.paidBy) {
+                return exp.paidBy;
+            }
+        }
+        const saved = getStorageItem('splitit_last_expense_singlepayer');
+        if (saved && (userList || []).some(u => u.id === saved)) return saved;
+        return state.currentUserId || state.users[0]?.id || '';
+    };
+
+    const extractMultiPayers = (exp) => {
+        const initial = {};
+        state.users.forEach(u => {
+            if (exp) {
+                if (Array.isArray(exp.payers)) {
+                    const payer = exp.payers.find(p => p.userId === u.id);
+                    initial[u.id] = payer ? payer.amount.toString() : '';
+                } else if (exp.paidBy && typeof exp.paidBy === 'object') {
+                    const amt = exp.paidBy[u.id];
+                    initial[u.id] = amt != null ? amt.toString() : '';
+                } else {
+                    initial[u.id] = '';
+                }
+            } else {
+                initial[u.id] = '';
+            }
+        });
+        return initial;
+    };
+
+    const extractSplitMode = (exp) => {
+        if (exp) {
+            const rawMode = (exp.splitMode || exp.splitType || '').toUpperCase();
+            if (rawMode === 'SHARES' || rawMode === 'SHARE' || rawMode === 'PERCENTAGE' || rawMode === 'PERCENT') return 'SHARES';
+            if (rawMode === 'EXACT_AMOUNTS' || rawMode === 'EXACT' || rawMode === 'CUSTOM') return 'EXACT_AMOUNTS';
+            if (rawMode === 'EQUAL') return 'EQUAL';
+            if (exp.splitShares && Object.keys(exp.splitShares).length > 0) return 'SHARES';
+            const splitsArr = exp.splits || exp.splitDetails || [];
+            if (Array.isArray(splitsArr) && splitsArr.length > 0) {
+                const hasShares = splitsArr.some(s => s.shares !== undefined || s.share !== undefined);
+                if (hasShares) return 'SHARES';
+                const amounts = splitsArr.map(s => s.amount);
+                const minA = Math.min(...amounts);
+                const maxA = Math.max(...amounts);
+                if (maxA - minA > 0.02) return 'EXACT_AMOUNTS';
+                return 'EQUAL';
+            }
+        }
+        const saved = getStorageItem('splitit_last_expense_splitmode');
+        return saved || 'EQUAL';
+    };
+
+    const extractSplitSelected = (exp, grp) => {
+        const initial = {};
+        const splitsArr = exp?.splits || exp?.splitDetails || [];
+        state.users.forEach(u => {
+            if (exp) {
+                if (Array.isArray(splitsArr) && splitsArr.length > 0) {
+                    initial[u.id] = splitsArr.some(s => s.userId === u.id);
+                } else if (Array.isArray(exp.participants)) {
+                    initial[u.id] = exp.participants.includes(u.id);
+                } else {
+                    initial[u.id] = true;
+                }
+            } else if (grp) {
+                initial[u.id] = grp.members.includes(u.id);
+            } else {
+                initial[u.id] = true;
+            }
+        });
+        return initial;
+    };
+
+    const extractSplitShares = (exp) => {
+        const initial = {};
+        const savedShares = exp?.splitShares || exp?.shares || {};
+        const splitsArr = exp?.splits || exp?.splitDetails || [];
+        state.users.forEach(u => {
+            if (exp) {
+                if (savedShares[u.id] !== undefined) {
+                    initial[u.id] = savedShares[u.id];
+                } else {
+                    const s = Array.isArray(splitsArr) ? splitsArr.find(sp => sp.userId === u.id) : null;
+                    if (s?.shares !== undefined) initial[u.id] = s.shares;
+                    else if (s?.share !== undefined) initial[u.id] = s.share;
+                    else initial[u.id] = 1;
+                }
+            } else {
+                initial[u.id] = 1;
+            }
+        });
+        return initial;
+    };
+
+    const extractSplitAmounts = (exp) => {
+        const initial = {};
+        const splitsArr = exp?.splits || exp?.splitDetails || [];
+        state.users.forEach(u => {
+            if (exp) {
+                const s = Array.isArray(splitsArr) ? splitsArr.find(sp => sp.userId === u.id) : null;
+                initial[u.id] = s ? s.amount.toString() : '';
+            } else {
+                initial[u.id] = '';
+            }
+        });
+        return initial;
+    };
+
+    const extractSplitAmountsManual = (exp) => {
+        const initial = {};
+        const splitsArr = exp?.splits || exp?.splitDetails || [];
+        if (exp && Array.isArray(splitsArr)) {
+            splitsArr.forEach(s => {
+                initial[s.userId] = true;
+            });
+        }
+        return initial;
+    };
+
+    // Group Selection with memory
+    const [selectedGroupId, setSelectedGroupId] = useState(() => {
+        if (expenseToEdit) return expenseToEdit.groupId || '';
+        if (defaultGroupId) return defaultGroupId;
+        if (state.selectedGroupId && state.selectedGroupId !== 'non-group') return state.selectedGroupId;
+        const saved = getStorageItem('splitit_last_expense_group');
+        if (saved && (state.groups || []).some(g => g.id === saved)) return saved;
+        return '';
+    });
+    const [showAllUsers, setShowAllUsers] = useState(false);
+
+    const [desc, setDesc] = useState(() => expenseToEdit?.description || '');
+    const [amount, setAmount] = useState(() => expenseToEdit?.amount != null ? expenseToEdit.amount.toString() : '');
+    const [category, setCategory] = useState(() => expenseToEdit?.category || '');
+
     const [dateTime, setDateTime] = useState(() => {
-        if (editingTransaction?.date) return formatDateTimeLocal(editingTransaction.date);
+        if (expenseToEdit?.date) return formatDateTimeLocal(expenseToEdit.date);
         const saved = getStorageItem('splitit_last_expense_datetime');
         if (saved) return saved;
         return formatDateTimeLocal(new Date());
@@ -61,7 +197,7 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
 
     // Bulk Mode (default enabled when creating new expenses)
     const [bulkMode, setBulkMode] = useState(() => {
-        if (editingTransaction) return false;
+        if (expenseToEdit) return false;
         const saved = getStorageItem('splitit_bulk_mode_expense');
         return saved !== null ? saved === 'true' : true;
     });
@@ -85,58 +221,43 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
 
     // Primary Collector (Optional)
     const [collectorId, setCollectorId] = useState(() => {
-        if (editingTransaction?.collectorId) return editingTransaction.collectorId;
+        if (expenseToEdit?.collectorId) return expenseToEdit.collectorId;
         const initialGrp = (state.groups || []).find(g => g.id === selectedGroupId);
         return initialGrp?.defaultCollectorId || '';
     });
 
     // SINGLE or MULTI payer
-    const [payerMode, setPayerMode] = useState(() => {
-        if (editingTransaction?.payers?.length > 1) return 'MULTI';
-        const saved = getStorageItem('splitit_last_expense_payermode');
-        if (saved) return saved;
-        return 'SINGLE';
-    });
+    const [payerMode, setPayerMode] = useState(() => extractPayerMode(expenseToEdit));
+    const [singlePayer, setSinglePayer] = useState(() => extractSinglePayer(expenseToEdit, sortedUsers));
+    const [multiPayers, setMultiPayers] = useState(() => extractMultiPayers(expenseToEdit));
 
-    const [singlePayer, setSinglePayer] = useState(() => {
-        if (editingTransaction?.payers?.[0]?.userId) return editingTransaction.payers[0].userId;
-        const saved = getStorageItem('splitit_last_expense_singlepayer');
-        if (saved && sortedUsers.some(u => u.id === saved)) return saved;
-        return state.currentUserId || state.users[0]?.id || '';
-    });
+    const [splitMode, setSplitMode] = useState(() => extractSplitMode(expenseToEdit));
+    const [splitSelected, setSplitSelected] = useState(() => extractSplitSelected(expenseToEdit, activeGroup));
+    const [splitShares, setSplitShares] = useState(() => extractSplitShares(expenseToEdit));
+    const [splitAmounts, setSplitAmounts] = useState(() => extractSplitAmounts(expenseToEdit));
+    const [splitAmountsManual, setSplitAmountsManual] = useState(() => extractSplitAmountsManual(expenseToEdit));
 
-    const [multiPayers, setMultiPayers] = useState(() => {
-        const initial = {};
-        state.users.forEach(u => {
-            if (editingTransaction) {
-                const payer = editingTransaction.payers?.find(p => p.userId === u.id);
-                initial[u.id] = payer ? payer.amount.toString() : '';
-            } else {
-                initial[u.id] = '';
-            }
-        });
-        return initial;
-    });
-
-    const [splitMode, setSplitMode] = useState(() => {
-        const saved = getStorageItem('splitit_last_expense_splitmode');
-        if (saved) return saved;
-        return 'EQUAL';
-    });
-
-    const [splitSelected, setSplitSelected] = useState(() => {
-        const initial = {};
-        state.users.forEach(u => {
-            if (editingTransaction) {
-                initial[u.id] = editingTransaction.splits?.some(s => s.userId === u.id) || false;
-            } else if (activeGroup) {
-                initial[u.id] = activeGroup.members.includes(u.id);
-            } else {
-                initial[u.id] = true;
-            }
-        });
-        return initial;
-    });
+    // Synchronize if editing another expense without remounting
+    const lastEditedIdRef = useRef(expenseToEdit?.id);
+    useEffect(() => {
+        if (expenseToEdit && expenseToEdit.id !== lastEditedIdRef.current) {
+            lastEditedIdRef.current = expenseToEdit.id;
+            setDesc(expenseToEdit.description || '');
+            setAmount(expenseToEdit.amount != null ? expenseToEdit.amount.toString() : '');
+            setCategory(expenseToEdit.category || '');
+            if (expenseToEdit.date) setDateTime(formatDateTimeLocal(expenseToEdit.date));
+            if (expenseToEdit.groupId !== undefined) setSelectedGroupId(expenseToEdit.groupId || '');
+            if (expenseToEdit.collectorId !== undefined) setCollectorId(expenseToEdit.collectorId || '');
+            setPayerMode(extractPayerMode(expenseToEdit));
+            setSinglePayer(extractSinglePayer(expenseToEdit, sortedUsers));
+            setMultiPayers(extractMultiPayers(expenseToEdit));
+            setSplitMode(extractSplitMode(expenseToEdit));
+            setSplitSelected(extractSplitSelected(expenseToEdit, (state.groups || []).find(g => g.id === expenseToEdit.groupId)));
+            setSplitShares(extractSplitShares(expenseToEdit));
+            setSplitAmounts(extractSplitAmounts(expenseToEdit));
+            setSplitAmountsManual(extractSplitAmountsManual(expenseToEdit));
+        }
+    }, [expenseToEdit]);
 
     // When group changes, update split selection defaults
     const handleGroupChange = (newGroupId) => {
@@ -160,37 +281,6 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
             }
         }
     };
-
-    const [splitShares, setSplitShares] = useState(() => {
-        const initial = {};
-        state.users.forEach(u => {
-            initial[u.id] = 1;
-        });
-        return initial;
-    });
-
-    const [splitAmounts, setSplitAmounts] = useState(() => {
-        const initial = {};
-        state.users.forEach(u => {
-            if (editingTransaction) {
-                const share = editingTransaction.splits?.find(sp => sp.userId === u.id);
-                initial[u.id] = share ? share.amount.toString() : '';
-            } else {
-                initial[u.id] = '';
-            }
-        });
-        return initial;
-    });
-
-    const [splitAmountsManual, setSplitAmountsManual] = useState(() => {
-        const initial = {};
-        if (editingTransaction && editingTransaction.splits) {
-            editingTransaction.splits.forEach(s => {
-                initial[s.userId] = true;
-            });
-        }
-        return initial;
-    });
 
     const totalAmount = parseFloat(amount) || 0;
 
@@ -230,7 +320,7 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
             });
 
             if (totalShares <= 0 || totalCents <= 0) {
-                return selectedUsers.map(u => ({ userId: u.id, amount: 0 }));
+                return selectedUsers.map(u => ({ userId: u.id, amount: 0, shares: validShares[u.id] || 0 }));
             }
 
             const usersWithShares = selectedUsers.filter(u => validShares[u.id] > 0);
@@ -239,14 +329,14 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
             return selectedUsers.map(u => {
                 const share = validShares[u.id];
                 if (share <= 0) {
-                    return { userId: u.id, amount: 0 };
+                    return { userId: u.id, amount: 0, shares: 0 };
                 }
                 if (usersWithShares.length > 0 && u.id === usersWithShares[usersWithShares.length - 1].id) {
-                    return { userId: u.id, amount: Math.max(0, remainingCents / 100) };
+                    return { userId: u.id, amount: Math.max(0, remainingCents / 100), shares: share };
                 }
                 const userCents = Math.round((totalCents * share) / totalShares);
                 remainingCents -= userCents;
-                return { userId: u.id, amount: Math.max(0, userCents / 100) };
+                return { userId: u.id, amount: Math.max(0, userCents / 100), shares: share };
             });
         } else if (splitMode === 'EXACT_AMOUNTS') {
             const manualTotalCents = selectedUsers.reduce((sum, u) => {
@@ -293,15 +383,21 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
 
         if (isPayerValid && isSplitValid && desc.trim()) {
             const groupId = selectedGroupId || null;
+            const extraMeta = {
+                splitMode,
+                splitType: splitMode.toLowerCase(),
+                splitShares,
+                category: category || null
+            };
 
             if (isEditing) {
-                updateExpense(editingTransaction.id, desc.trim(), amount, dateTime, getPayers(), getSplits(), groupId, collectorId || null);
+                updateExpense(expenseToEdit.id, desc.trim(), amount, dateTime, getPayers(), getSplits(), groupId, collectorId || null, extraMeta);
                 onSuccess();
                 return;
             }
 
             // Add Expense
-            addExpense(desc.trim(), amount, dateTime, getPayers(), getSplits(), groupId, collectorId || null);
+            addExpense(desc.trim(), amount, dateTime, getPayers(), getSplits(), groupId, collectorId || null, extraMeta);
 
             // Keep settings in memory for quick recall
             if (groupId) {
@@ -335,7 +431,9 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
 
     const handleDelete = () => {
         if (window.confirm('Are you sure you want to delete this expense? This action cannot be undone.')) {
-            deleteTransaction(editingTransaction.id);
+            if (expenseToEdit?.id) {
+                deleteTransaction(expenseToEdit.id);
+            }
             onSuccess();
         }
     };

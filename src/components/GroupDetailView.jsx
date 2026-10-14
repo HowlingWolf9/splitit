@@ -116,9 +116,8 @@ export default function GroupDetailView() {
                 <button
                     type="button"
                     onClick={() => navigate('/groups')}
-                    className="btn btn-secondary btn-sm"
+                    className="btn btn-secondary btn-sm desktop-only-action"
                     style={{
-                        display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.45rem',
                         minHeight: '44px',
@@ -369,7 +368,7 @@ export default function GroupDetailView() {
                     <button
                         type="button"
                         onClick={() => setShowAddExpenseModal(true)}
-                        className="btn"
+                        className="btn desktop-only-action"
                         style={{ flex: 1, minWidth: '160px', backgroundColor: '#00d09c' }}
                     >
                         <Plus size={18} />

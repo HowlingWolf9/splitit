@@ -53,7 +53,7 @@
   - **Portable Executable**: `SplitIt-Portable-<version>.exe` (zero-install standalone `.exe` that runs from anywhere or a flash drive).
 - **Desktop Architecture & State Persistence**:
   - Main Process: `electron/main.cjs` (manages window lifecycle, single instance lock, and native print dialogs).
-  - Preload Bridge: `electron/preload.cjs` (safely exposes `window.electronPrint` and binds `window.print()` to native spooler).
+  - Preload Bridge: `electron/preload.cjs` (safely exposes `window.electronPrint`, `window.electronFile`, `window.electronAPI`, and binds `window.print()` to native spooler).
   - Window Metrics: Default `1280x820`, min `400x600`, `autoHideMenuBar: true`, high-res application icon (`electron/assets/icon.ico`).
   - State Persistence: `app.setPath('userData', ...)` targets `%APPDATA%\SplitIt`, ensuring persistent `localStorage` and `IndexedDB`.
 - **Desktop Native Printing & PDF Export**:
@@ -63,4 +63,22 @@
 - **Tag-Driven CI/CD**:
   - Windows release builds run in `.github/workflows/pc-release.yml` on `v*` tags and `workflow_dispatch`.
   - Uploads both Setup and Portable `.exe` packages to the GitHub Release without altering Android APK assets (preserving Obtainium update detection).
+
+## Core Feature Invariants & Pre-Completion Regression Checklist
+The following invariants are strictly mandatory and must NEVER be regressed or altered in future edits:
+1. **Vertical Scroll Invariant**:
+   - Never apply `overflow: hidden` or `overscroll-behavior-y: none` to `body`, `html`, `#root`, or view containers without a properly constrained flex scroll container.
+   - Long lists (`AllTransactionsView`, `Settings`, `GroupDetailView`, `BalancesView`) must scroll vertically on touch devices and desktop mice without getting stuck.
+   - All modals and bottom sheets (`ExpenseForm`, `GroupFormModal`, `GroupSettleUpModal`, `SettlementForm`, `JoinSharedGroupModal`) must maintain `max-height: 85dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;`.
+   - Body scroll locking (`body.modal-open`) must be cleanly restored (`overflow: ''`) when closing or unmounting modals, including when dismissed via Android's hardware back button.
+2. **Expense Edit State Invariant**:
+   - When editing an existing transaction in `ExpenseForm`, hydrated data (`description`, `amount`, `date`, `category`, `groupId`, `splitMode`, `splitType`, `splitShares`, custom `splits`, and multi-payer `payers` maps) must NEVER be wiped out or reset to default equal splits on initial render.
+   - Dynamic recalculation must only trigger when the user *actively* changes the `splitMode` or manually modifies the total amount.
+   - When `splitMode === 'SHARES'` or `'PERCENTAGE'`, existing share ratios and percentage values must be preserved when the amount changes, recalculating only derived currency amounts.
+3. **Cross-Platform I/O Invariant**:
+   - **Printing**: Always route through `triggerPrint(docTitle)` in `src/utils/printHelper.js`, utilizing Android's native print spooler (`MainActivity.java` via `@JavascriptInterface`) and Electron's native print bridge (`electron/preload.cjs`).
+   - **Data Backup Export/Import**: Always route through `exportBackupJson()` and `openElectronBackupFile()` / `readJsonFile()` in `src/utils/fileHelper.js`. Never rely solely on web `<a download="blob:...">` (broken on Android WebView) or restrictive `<input type="file" accept=".json">` (which greys out JSON files in Android DocumentsUI; must accept `.json,application/json,text/plain,*/*`).
+4. **Single-Source UI Chrome Invariant**:
+   - Navigation chrome (Top App Bar titles, back buttons via `src/utils/backButton.js`, bottom navigation, and the primary Add Expense FAB) is managed centrally in `src/App.jsx`.
+   - Child views (`DashboardView`, `GroupsView`, `GroupDetailView`, `BalancesView`, `MembersView`, `AllTransactionsView`, `Settings`) must never render duplicate mobile headers, duplicate back buttons, or duplicate `.fab-container` elements. Use `.desktop-only-header` and `.desktop-only-action` to avoid double UI elements on mobile.
 

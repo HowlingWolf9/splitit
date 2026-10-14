@@ -125,7 +125,7 @@ export default function SettlementsListView({ onViewSettlement }) {
                     flexWrap: 'wrap',
                     gap: '0.75rem'
                 }}>
-                    <div>
+                    <div className="desktop-only-header">
                         <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
                             Settlements {selectedGroup ? `— ${selectedGroup.name}` : ''}
                         </h2>
@@ -133,6 +133,19 @@ export default function SettlementsListView({ onViewSettlement }) {
                             {filteredSettlements.length} {filteredSettlements.length === 1 ? 'settlement' : 'settlements'} recorded
                         </span>
                     </div>
+
+                    <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => {
+                            setEditingSettlement(null);
+                            setShowForm(true);
+                        }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                        <Plus size={16} />
+                        <span>Record Settlement</span>
+                    </button>
                 </div>
 
                 {/* Filters */}
@@ -303,22 +316,6 @@ export default function SettlementsListView({ onViewSettlement }) {
                     </div>
                 </div>
             )}
-
-            {/* Floating Action Button */}
-            <div className="fab-container">
-                <button
-                    type="button"
-                    className="fab fab-primary"
-                    onClick={() => {
-                        setEditingSettlement(null);
-                        setShowForm(true);
-                    }}
-                    title="Record Settlement"
-                >
-                    <Plus size={20} strokeWidth={2.5} />
-                    <span>Record Settlement</span>
-                </button>
-            </div>
         </div>
     );
 }

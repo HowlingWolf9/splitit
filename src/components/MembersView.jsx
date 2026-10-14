@@ -129,7 +129,7 @@ export default function MembersView() {
                     flexWrap: 'wrap',
                     gap: '0.75rem'
                 }}>
-                    <div>
+                    <div className="desktop-only-header">
                         <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
                             {isGroupSelected
                                 ? `Members in ${selectedGroup.name}`

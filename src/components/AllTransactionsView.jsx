@@ -105,7 +105,7 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     flexWrap: 'wrap',
                     gap: '0.75rem'
                 }}>
-                    <div>
+                    <div className="desktop-only-header">
                         <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
                             Activity Ledger {selectedGroup ? `— ${selectedGroup.name}` : ''}
                         </h2>
@@ -115,6 +115,15 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setIsAddingSettlement(true)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <HandCoins size={15} />
+                            <span>Record Settlement</span>
+                        </button>
                         <select
                             className="input"
                             value={groupFilter}
@@ -274,28 +283,6 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     </div>
                 </div>
             )}
-
-            {/* Floating Action Buttons */}
-            <div className="fab-container">
-                <button
-                    type="button"
-                    className="fab fab-secondary"
-                    onClick={() => setIsAddingSettlement(true)}
-                    title="Record Settlement"
-                >
-                    <HandCoins size={18} strokeWidth={2.2} />
-                    <span>Record Settlement</span>
-                </button>
-                <button
-                    type="button"
-                    className="fab fab-primary"
-                    onClick={() => setIsAddingExpense(true)}
-                    title="Add Expense"
-                >
-                    <Plus size={18} strokeWidth={2.5} />
-                    <span>Add Expense</span>
-                </button>
-            </div>
         </div>
     );
 }

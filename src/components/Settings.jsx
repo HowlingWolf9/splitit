@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { useModalBackHandler } from '../utils/backButton';
 import * as gdrive from '../services/googleDriveSync';
+import { exportBackupJson, readJsonFile, openElectronBackupFile, isElectron } from '../utils/fileHelper';
 import {
     Settings as SettingsIcon,
     Download,
@@ -88,27 +89,40 @@ export default function Settings() {
         setTimeout(() => setMessage(null), 5000);
     };
 
-    const handleExport = () => {
+    const handleExport = async () => {
         try {
             const jsonData = exportData();
-            const blob = new Blob([jsonData], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            const date = new Date().toISOString().split('T')[0];
-            link.href = url;
-            link.download = `splitit-backup-${date}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-
+            const res = await exportBackupJson(jsonData);
+            if (res?.canceled) return;
             showMessage('success', 'Data exported successfully!');
-        } catch {
-            showMessage('error', 'Failed to export data');
+        } catch (err) {
+            console.error('Export error:', err);
+            showMessage('error', 'Failed to export data: ' + (err.message || 'Unknown error'));
         }
     };
 
-    const handleImportClick = () => {
+    const handleImportClick = async () => {
+        if (isElectron()) {
+            if (!window.confirm('⚠️ Importing will replace all existing data. Are you sure you want to proceed?')) {
+                return;
+            }
+            try {
+                const res = await openElectronBackupFile();
+                if (res?.canceled) return;
+                if (res?.success && res.content) {
+                    const result = importData(res.content);
+                    if (result.success) {
+                        showMessage('success', 'Data imported successfully!');
+                    } else {
+                        showMessage('error', result.error || 'Failed to import data');
+                    }
+                }
+            } catch (err) {
+                console.error('Electron import error:', err);
+                showMessage('error', 'Failed to read backup file');
+            }
+            return;
+        }
         fileInputRef.current?.click();
     };
 
@@ -122,7 +136,7 @@ export default function Settings() {
         }
 
         try {
-            const text = await file.text();
+            const text = await readJsonFile(file);
             const result = importData(text);
 
             if (result.success) {
@@ -130,8 +144,9 @@ export default function Settings() {
             } else {
                 showMessage('error', result.error || 'Failed to import data');
             }
-        } catch {
-            showMessage('error', 'Failed to read file');
+        } catch (err) {
+            console.error('File read error:', err);
+            showMessage('error', 'Failed to read file: ' + (err.message || 'Unknown error'));
         }
 
         event.target.value = '';
@@ -280,8 +295,8 @@ export default function Settings() {
     return (
         <div style={{ maxWidth: '680px', margin: '0 auto', display: 'grid', gap: '1.25rem' }}>
             <div className="card">
-                {/* Header */}
-                <div style={{
+                {/* Header (desktop only, as TopBar displays Settings title on mobile) */}
+                <div className="desktop-only-header" style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.65rem',
@@ -727,7 +742,7 @@ export default function Settings() {
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".json"
+                            accept=".json,application/json,text/plain,*/*"
                             onChange={handleFileChange}
                             style={{ display: 'none' }}
                         />
