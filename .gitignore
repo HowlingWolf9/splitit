@@ -37,3 +37,9 @@ android/.gradle
 android/build
 android/app/build
 
+# Desktop / Electron release builds
+release
+dist-electron
+*.exe
+
+

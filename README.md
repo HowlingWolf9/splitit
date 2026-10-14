@@ -299,6 +299,33 @@ Under repository **Settings** &rarr; **Secrets and variables** &rarr; **Actions*
 
 *(If secrets are not yet added, the CI workflow continues smoothly using fallback signing, so runs never fail).*
 
+## 💻 Windows PC Desktop Application
+
+SplitIt provides a standalone native Windows desktop application powered by Electron, featuring offline data persistence, desktop shortcuts, and direct integration with native Windows printing.
+
+### 📦 Available Executable Packages
+- **Setup Installer (`SplitIt-Setup-<version>.exe`)**: Traditional Windows installer with custom installation directory choice, Desktop shortcut, and Start Menu integration.
+- **Portable App (`SplitIt-Portable-<version>.exe`)**: Zero-install standalone executable. Runs instantly from any folder or USB flash drive without administrator privileges.
+
+### 🛠️ Local PC Commands
+- **Start Desktop in Development (Live HMR)**:
+  ```bash
+  npm run electron:dev
+  ```
+- **Build Windows Executables (Production)**:
+  ```bash
+  npm run build:pc
+  ```
+  Artifacts will be packaged into the `release/` directory:
+  - `release/SplitIt-Setup-<version>.exe`
+  - `release/SplitIt-Portable-<version>.exe`
+
+### 🖨️ Native Printing & PDF Export
+When clicking "Print / Save PDF" inside the application (e.g. from the custom Statement generator), Electron opens the native Windows print spooler with full color fidelity and background graphics enabled (`printBackground: true`), allowing 1-click printing or "Microsoft Print to PDF" export.
+
+### 🤖 Windows CI/CD Pipeline
+The Windows automated release workflow (`.github/workflows/pc-release.yml`) builds and publishes both `.exe` packages to GitHub Releases alongside the Android APK on version tags (`v*`) and manual dispatch.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

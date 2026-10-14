@@ -1,0 +1,105 @@
+name: Windows PC Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish a GitHub Release with build artifacts'
+        required: false
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag name (if publishing release manually, e.g. v1.0.0)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-pc:
+    name: Build Windows PC (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Determine Version and Release Status
+        id: versioning
+        shell: bash
+        run: |
+          git fetch --tags --force
+
+          if [[ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
+            TAG_NAME="${GITHUB_REF_NAME}"
+            IS_RELEASE="true"
+            echo "Triggered by git release tag: $TAG_NAME"
+          elif [[ -n "${{ inputs.release_tag }}" ]]; then
+            TAG_NAME="${{ inputs.release_tag }}"
+            IS_RELEASE="${{ inputs.publish_release || 'true' }}"
+            echo "Triggered by manual dispatch with tag: $TAG_NAME"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.publish_release }}" == "true" ]]; then
+            PKG_VERSION=$(node -p "require('./package.json').version")
+            TAG_NAME="v${PKG_VERSION}"
+            IS_RELEASE="true"
+            echo "Triggered by manual dispatch publish with package version: $TAG_NAME"
+          else
+            PKG_VERSION=$(node -p "require('./package.json').version")
+            TAG_NAME="v${PKG_VERSION}"
+            IS_RELEASE="false"
+            echo "Triggered by branch commit (${GITHUB_REF_NAME}). CI build only, skipping GitHub Release creation."
+          fi
+
+          echo "RELEASE_TAG=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "IS_RELEASE=$IS_RELEASE" >> $GITHUB_OUTPUT
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Windows Executables (Vite + electron-builder)
+        run: npm run build:pc
+
+      - name: Upload Windows Setup Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SplitIt-Windows-Setup-Installer
+          path: release/*-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Windows Portable Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SplitIt-Windows-Portable-App
+          path: release/*-Portable-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Release to GitHub
+        if: steps.versioning.outputs.IS_RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versioning.outputs.RELEASE_TAG }}
+          name: Release ${{ steps.versioning.outputs.RELEASE_TAG }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release/*-Setup-*.exe
+            release/*-Portable-*.exe

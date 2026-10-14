@@ -16,6 +16,24 @@ export const isNativeAndroid = () => {
 };
 
 /**
+ * Checks if the current execution environment is running inside Electron desktop.
+ * Verifies window.electronPrint bridge or Electron userAgent.
+ */
+export const isElectron = () => {
+    try {
+        if (typeof window !== 'undefined' && window.electronPrint && typeof window.electronPrint.print === 'function') {
+            return true;
+        }
+        if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().includes('electron')) {
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+};
+
+/**
  * Generates a clean, filesystem-safe document title for print and PDF export.
  * E.g., "SplitIt_Statement_GoaTrip_2026-10-14"
  *
@@ -40,11 +58,13 @@ export const formatPrintDocumentTitle = (customName = '') => {
 };
 
 /**
- * Unified printing & PDF export handler for Android native app, Web, and Desktop.
+ * Unified printing & PDF export handler for Android native app, Windows Desktop (Electron), and Web.
  *
  * - On Native Android: Invokes Android's native android.print.PrintManager via our
  *   WebView JavascriptInterface bridge (or local Capacitor plugin). This summons
  *   Android's native print spooler with "Save as PDF" and physical printers.
+ * - On Electron Desktop: Invokes native Windows print spooler via Electron IPC bridge
+ *   with background graphics enabled (printBackground: true) and dynamic document title.
  * - On Web / Desktop Browsers: Temporarily switches document.title to dynamic documentTitle
  *   so the browser's "Save as PDF" dialog suggests the exact filename, triggers window.print(),
  *   and restores document.title safely upon completion.
@@ -78,7 +98,32 @@ export const triggerPrint = async (documentTitle) => {
         }
     }
 
-    // 3. Web & Desktop Browser standard window.print()
+    // 3. Electron Windows Desktop Native Print (with printBackground: true)
+    if (typeof window !== 'undefined' && window.electronPrint && typeof window.electronPrint.print === 'function') {
+        const originalTitle = document.title;
+        try {
+            document.title = title;
+        } catch {
+            // Ignore title mutation error
+        }
+
+        try {
+            const success = await window.electronPrint.print(title);
+            return success !== false;
+        } catch (err) {
+            console.warn('[SplitIt Print] Electron native print failed, falling back to window.print():', err);
+        } finally {
+            setTimeout(() => {
+                try {
+                    document.title = originalTitle;
+                } catch {
+                    // Ignore
+                }
+            }, 1000);
+        }
+    }
+
+    // 4. Web & Desktop Browser standard window.print()
     if (typeof window !== 'undefined' && typeof window.print === 'function') {
         const originalTitle = document.title;
         try {

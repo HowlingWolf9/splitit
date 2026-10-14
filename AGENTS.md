@@ -31,3 +31,24 @@
   - Strictly hide all screen-only UI, navigation bars, bottom sheets, FABs, and action buttons (`display: none !important;`).
   - Preserve color fidelity using `print-color-adjust: exact !important;` and `-webkit-print-color-adjust: exact !important;`.
   - Prevent mid-card/row slicing across pages using `.print-avoid-break` and `break-inside: avoid; page-break-inside: avoid;`.
+
+## Windows PC Desktop Application (Electron)
+- **Local Development & Build Scripts**:
+  - `npm run electron:dev`: Starts Vite dev server with instant HMR and attaches the Electron window via `--dev-url`.
+  - `npm run build:pc`: Compiles the production bundle (`vite build`) and runs `electron-builder --win --x64`.
+- **Packaging Targets (`release/`)**:
+  - **NSIS Setup Installer**: `SplitIt-Setup-<version>.exe` (with customizable install directory, Start Menu, and Desktop shortcuts).
+  - **Portable Executable**: `SplitIt-Portable-<version>.exe` (zero-install standalone `.exe` that runs from anywhere or a flash drive).
+- **Desktop Architecture & State Persistence**:
+  - Main Process: `electron/main.cjs` (manages window lifecycle, single instance lock, and native print dialogs).
+  - Preload Bridge: `electron/preload.cjs` (safely exposes `window.electronPrint` and binds `window.print()` to native spooler).
+  - Window Metrics: Default `1280x820`, min `400x600`, `autoHideMenuBar: true`, high-res application icon (`electron/assets/icon.ico`).
+  - State Persistence: `app.setPath('userData', ...)` targets `%APPDATA%\SplitIt`, ensuring persistent `localStorage` and `IndexedDB`.
+- **Desktop Native Printing & PDF Export**:
+  - Automatically activates when `triggerPrint` or `window.print()` is executed.
+  - Main process handles `splitit:print` IPC via `webContents.print({ silent: false, printBackground: true, color: true })`.
+  - Background graphics and color reproduction are enabled by default for statement exports.
+- **Tag-Driven CI/CD**:
+  - Windows release builds run in `.github/workflows/pc-release.yml` on `v*` tags and `workflow_dispatch`.
+  - Uploads both Setup and Portable `.exe` packages to the GitHub Release without altering Android APK assets (preserving Obtainium update detection).
+
