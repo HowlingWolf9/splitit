@@ -21,7 +21,10 @@ import {
     HelpCircle,
     X,
     WifiOff,
-    ShieldCheck
+    ShieldCheck,
+    Radio,
+    Trash2,
+    Plus
 } from 'lucide-react';
 
 export default function Settings() {
@@ -41,11 +44,18 @@ export default function Settings() {
         syncNow,
         connectDrive,
         disconnectDrive,
-        saveManualToken
+        saveManualToken,
+        getConfiguredRelays,
+        saveConfiguredRelays,
+        defaultNostrRelays
     } = useExpenses();
 
     const fileInputRef = useRef(null);
     const [message, setMessage] = useState(null); // { type: 'success' | 'error', text: string }
+
+    // Nostr Relay configuration state
+    const [nostrRelays, setNostrRelays] = useState(() => getConfiguredRelays?.() || []);
+    const [newRelayInput, setNewRelayInput] = useState('');
 
     // Advanced section accordion
     const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -57,6 +67,7 @@ export default function Settings() {
     // Custom Client ID input state
     const [clientIdInput, setClientIdInput] = useState(customClientId || '');
     const [clientIdSaved, setClientIdSaved] = useState(false);
+
 
     // Manual token input state
     const [manualTokenInput, setManualTokenInput] = useState('');
@@ -157,6 +168,43 @@ export default function Settings() {
         } else {
             showMessage('error', `Token test failed: ${res.error}`);
         }
+    };
+
+    const handleAddRelay = (e) => {
+        e.preventDefault();
+        const url = newRelayInput.trim();
+        if (!url) return;
+        if (!url.startsWith('wss://') && !url.startsWith('ws://')) {
+            showMessage('error', 'Relay URL must start with wss:// or ws://');
+            return;
+        }
+        if (nostrRelays.includes(url)) {
+            showMessage('error', 'Relay already in list');
+            return;
+        }
+        const updated = [...nostrRelays, url];
+        setNostrRelays(updated);
+        saveConfiguredRelays(updated);
+        setNewRelayInput('');
+        showMessage('success', 'Relay added successfully!');
+    };
+
+    const handleRemoveRelay = (urlToRemove) => {
+        if (nostrRelays.length <= 1) {
+            showMessage('error', 'At least one relay is required for synchronization');
+            return;
+        }
+        const updated = nostrRelays.filter(r => r !== urlToRemove);
+        setNostrRelays(updated);
+        saveConfiguredRelays(updated);
+        showMessage('success', 'Relay removed');
+    };
+
+    const handleResetRelays = () => {
+        const defaults = defaultNostrRelays || ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://nostr.mom'];
+        setNostrRelays(defaults);
+        saveConfiguredRelays(defaults);
+        showMessage('success', 'Reset relays to defaults');
     };
 
     const formatLastSynced = (iso) => {
@@ -687,7 +735,126 @@ export default function Settings() {
                 </div>
 
                 {/* ============================================================== */}
-                {/* SECTION 4: ANDROID APP UPDATES & OBTAINIUM */}
+                {/* SECTION 4: MULTI-USER GROUP SYNC (PUBLIC NOSTR RELAYS) */}
+                {/* ============================================================== */}
+                <div style={{ paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Radio size={16} style={{ color: 'hsl(var(--color-accent))' }} />
+                            <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Multi-User Group Sync (Public Nostr Relays)</label>
+                        </div>
+                        <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '999px',
+                            background: 'hsl(var(--color-success-soft))',
+                            color: 'hsl(var(--color-success))',
+                            border: '1px solid hsl(var(--color-success) / 0.3)'
+                        }}>
+                            Zero-Server • E2EE
+                        </span>
+                    </div>
+                    <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', lineHeight: 1.5 }}>
+                        Shared groups synchronize peer-to-peer using end-to-end encrypted events over free public Nostr relays with $0 server cost. Relays only ever see opaque AES-GCM ciphertext. You can customize which relays your device connects to below.
+                    </p>
+
+                    {/* Relay List */}
+                    <div style={{
+                        display: 'grid',
+                        gap: '0.45rem',
+                        marginBottom: '1rem',
+                        background: 'hsl(var(--color-surface-dim))',
+                        padding: '0.75rem',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid hsl(var(--color-border-subtle))'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.76rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'hsl(var(--color-text-muted))' }}>
+                                Active Relays ({nostrRelays.length})
+                            </span>
+                            <button
+                                type="button"
+                                onClick={handleResetRelays}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'hsl(var(--color-accent))',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    padding: 0
+                                }}
+                            >
+                                Reset to Defaults
+                            </button>
+                        </div>
+
+                        {nostrRelays.map((relay) => (
+                            <div
+                                key={relay}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.45rem 0.65rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    background: 'hsl(var(--color-surface))',
+                                    border: '1px solid hsl(var(--color-border-subtle))',
+                                    fontSize: '0.82rem',
+                                    fontFamily: 'monospace'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                                    <span style={{
+                                        display: 'inline-block',
+                                        width: '6px',
+                                        height: '6px',
+                                        borderRadius: '50%',
+                                        background: 'hsl(var(--color-success))',
+                                        flexShrink: 0
+                                    }} />
+                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                        {relay}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleRemoveRelay(relay)}
+                                    className="btn-icon"
+                                    title="Remove Relay"
+                                    style={{ padding: '0.2rem', color: 'hsl(var(--color-danger-text))' }}
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Add Relay Input Form */}
+                    <form onSubmit={handleAddRelay} style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                            type="text"
+                            className="form-input"
+                            placeholder="wss://relay.example.com"
+                            value={newRelayInput}
+                            onChange={(e) => setNewRelayInput(e.target.value)}
+                            style={{ flex: 1, fontSize: '0.82rem', padding: '0.5rem 0.75rem' }}
+                        />
+                        <button
+                            type="submit"
+                            className="btn btn-secondary btn-sm"
+                            disabled={!newRelayInput.trim()}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <Plus size={14} />
+                            <span>Add Relay</span>
+                        </button>
+                    </form>
+                </div>
+
+                {/* ============================================================== */}
+                {/* SECTION 5: ANDROID APP UPDATES & OBTAINIUM */}
                 {/* ============================================================== */}
                 <div style={{ paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>

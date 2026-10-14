@@ -1,6 +1,18 @@
-import React, { createContext, useReducer, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, {
+    createContext,
+    useContext,
+    useReducer,
+    useEffect,
+    useState,
+    useRef,
+    useCallback,
+    useMemo
+} from 'react';
 import * as gdrive from '../services/googleDriveSync';
 import { mergeAppState } from '../services/googleDriveSync';
+import * as multiSync from '../services/multiUserSync';
+import { mergeGroupSyncPayload } from '../services/multiUserSync';
+
 
 // CURRENCIES
 const CURRENCIES = {
@@ -164,10 +176,14 @@ const DELETE_TRANSACTION = 'DELETE_TRANSACTION';
 const SET_CURRENCY = 'SET_CURRENCY';
 const IMPORT_DATA = 'IMPORT_DATA';
 const MERGE_SYNCED_DATA = 'MERGE_SYNCED_DATA';
+const MERGE_GROUP_SYNC_DATA = 'MERGE_GROUP_SYNC_DATA';
+const SET_GROUP_MEMBER_IDENTITY = 'SET_GROUP_MEMBER_IDENTITY';
+const SET_GROUP_SYNC_CONFIG = 'SET_GROUP_SYNC_CONFIG';
 
 // CONFLICT-FREE STATE MERGER UTILITY
 // eslint-disable-next-line react-refresh/only-export-components
-export { mergeAppState };
+export { mergeAppState, mergeGroupSyncPayload };
+
 
 // REDUCER
 function expenseReducer(state, action) {
@@ -315,6 +331,29 @@ function expenseReducer(state, action) {
                 currency: payload.currency || state.currency,
                 currentUserId: state.currentUserId,
                 selectedGroupId: state.selectedGroupId
+            };
+        }
+        case MERGE_GROUP_SYNC_DATA: {
+            return mergeGroupSyncPayload(state, action.payload, action.myMemberId);
+        }
+        case SET_GROUP_MEMBER_IDENTITY: {
+            const { groupId, memberId } = action.payload;
+            const now = new Date().toISOString();
+            return {
+                ...state,
+                groups: (state.groups || []).map(g =>
+                    g.id === groupId ? { ...g, myMemberId: memberId, updatedAt: now } : g
+                )
+            };
+        }
+        case SET_GROUP_SYNC_CONFIG: {
+            const { groupId, isShared, syncSecret } = action.payload;
+            const now = new Date().toISOString();
+            return {
+                ...state,
+                groups: (state.groups || []).map(g =>
+                    g.id === groupId ? { ...g, isShared: !!isShared, syncSecret: syncSecret || g.syncSecret || null, updatedAt: now } : g
+                )
             };
         }
         case IMPORT_DATA: {
@@ -566,6 +605,8 @@ export function ExpenseProvider({ children }) {
     const isSyncingRef = useRef(false);
     const syncTimerRef = useRef(null);
     const isInitialRender = useRef(true);
+    const stateRef = useRef(state);
+    stateRef.current = state;
 
     const setIsAutoSyncEnabled = useCallback((enabled) => {
         setIsAutoSyncEnabledState(enabled);
@@ -798,6 +839,248 @@ export function ExpenseProvider({ children }) {
             if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
         };
     }, [state, isAutoSyncEnabled, syncNow]);
+
+    // -----------------------------------------------------------------------
+    // ZERO-SERVER MULTI-USER GROUP SYNC (NOSTR RELAYS & E2EE)
+    // -----------------------------------------------------------------------
+    const [groupSyncStates, setGroupSyncStates] = useState({});
+    const groupSubscriptionsRef = useRef(new Map());
+    const groupPublishTimersRef = useRef(new Map());
+
+    const setGroupSyncStatus = useCallback((groupId, partial) => {
+        setGroupSyncStates(prev => ({
+            ...prev,
+            [groupId]: {
+                status: 'offline',
+                lastSyncedAt: null,
+                error: null,
+                ...(prev[groupId] || {}),
+                ...partial
+            }
+        }));
+    }, []);
+
+    // Subscribe to incoming updates on public Nostr relays for all shared groups
+    useEffect(() => {
+        const sharedGroups = (state.groups || []).filter(g => g.isShared && g.syncSecret);
+        const currentGroupIds = new Set(sharedGroups.map(g => g.id));
+
+        // Clean up subscriptions for removed or unshared groups
+        groupSubscriptionsRef.current.forEach((unsub, gid) => {
+            if (!currentGroupIds.has(gid)) {
+                try { unsub(); } catch (err) { void err; }
+                groupSubscriptionsRef.current.delete(gid);
+            }
+        });
+
+        // Register active subscription for each shared group
+        sharedGroups.forEach(g => {
+            if (!groupSubscriptionsRef.current.has(g.id)) {
+                setGroupSyncStatus(g.id, { status: 'syncing' });
+                multiSync.subscribeToGroup(
+                    g.id,
+                    g.syncSecret,
+                    (payload) => {
+                        dispatch({
+                            type: MERGE_GROUP_SYNC_DATA,
+                            payload,
+                            myMemberId: g.myMemberId
+                        });
+                        setGroupSyncStatus(g.id, {
+                            status: 'live',
+                            lastSyncedAt: new Date().toISOString(),
+                            error: null
+                        });
+                    },
+                    (status) => {
+                        setGroupSyncStatus(g.id, { status });
+                    }
+                ).then(unsub => {
+                    groupSubscriptionsRef.current.set(g.id, unsub);
+                }).catch(err => {
+                    console.error(`Subscription failed for group ${g.id}:`, err);
+                    setGroupSyncStatus(g.id, { status: 'offline', error: err.message });
+                });
+            }
+        });
+    }, [state.groups, setGroupSyncStatus]);
+
+    // Unsubscribe all active relay connections on unmount
+    useEffect(() => {
+        const subs = groupSubscriptionsRef.current;
+        const timers = groupPublishTimersRef.current;
+        return () => {
+            subs.forEach(unsub => {
+                try { unsub(); } catch (err) { void err; }
+            });
+            subs.clear();
+            timers.forEach(t => clearTimeout(t));
+            timers.clear();
+        };
+    }, []);
+
+    // Debounced automatic publish (1.5s) when a shared group's expenses or metadata change locally
+    useEffect(() => {
+        if (isInitialRender.current) return;
+        const sharedGroups = (state.groups || []).filter(g => g.isShared && g.syncSecret);
+        if (sharedGroups.length === 0) return;
+
+        sharedGroups.forEach(g => {
+            if (groupPublishTimersRef.current.has(g.id)) {
+                clearTimeout(groupPublishTimersRef.current.get(g.id));
+            }
+            const timer = setTimeout(async () => {
+                groupPublishTimersRef.current.delete(g.id);
+                try {
+                    const res = await multiSync.publishGroupUpdate(stateRef.current, g.id);
+                    if (res.success) {
+                        setGroupSyncStatus(g.id, {
+                            status: 'synced',
+                            lastSyncedAt: res.timestamp,
+                            error: null
+                        });
+                    }
+                } catch (err) {
+                    console.warn(`Failed auto-publishing update for group ${g.id}:`, err);
+                }
+            }, 1500);
+            groupPublishTimersRef.current.set(g.id, timer);
+        });
+    }, [state.transactions, state.groups, setGroupSyncStatus]);
+
+    const enableGroupSync = useCallback(async (groupId, existingSecret = null) => {
+        const group = (stateRef.current.groups || []).find(g => g.id === groupId);
+        if (!group) return { success: false, error: 'Group not found' };
+
+        const secret = existingSecret || group.syncSecret || multiSync.generateSyncSecret();
+        dispatch({
+            type: SET_GROUP_SYNC_CONFIG,
+            payload: {
+                groupId,
+                isShared: true,
+                syncSecret: secret
+            }
+        });
+
+        setGroupSyncStatus(groupId, { status: 'syncing' });
+
+        // Immediately publish current group state to relays
+        const pubRes = await multiSync.publishGroupUpdate(stateRef.current, groupId, secret);
+        if (pubRes.success) {
+            setGroupSyncStatus(groupId, {
+                status: 'synced',
+                lastSyncedAt: pubRes.timestamp,
+                error: null
+            });
+        }
+
+        const inviteCode = multiSync.generateInviteCode(group, secret);
+        return {
+            success: true,
+            syncSecret: secret,
+            inviteCode
+        };
+    }, [setGroupSyncStatus]);
+
+    const disableGroupSync = useCallback((groupId) => {
+        if (groupSubscriptionsRef.current.has(groupId)) {
+            try { groupSubscriptionsRef.current.get(groupId)(); } catch (err) { void err; }
+            groupSubscriptionsRef.current.delete(groupId);
+        }
+        dispatch({
+            type: SET_GROUP_SYNC_CONFIG,
+            payload: {
+                groupId,
+                isShared: false,
+                syncSecret: null
+            }
+        });
+        setGroupSyncStatus(groupId, { status: 'offline' });
+    }, [setGroupSyncStatus]);
+
+    const setGroupMemberIdentity = useCallback((groupId, memberId) => {
+        dispatch({
+            type: SET_GROUP_MEMBER_IDENTITY,
+            payload: { groupId, memberId }
+        });
+    }, []);
+
+    const syncGroupNow = useCallback(async (groupId) => {
+        const group = (state.groups || []).find(g => g.id === groupId);
+        if (!group || !group.syncSecret) return { success: false, error: 'Group is not shared' };
+
+        setGroupSyncStatus(groupId, { status: 'syncing', error: null });
+
+        try {
+            // 1. Broadcast our latest local group data
+            await multiSync.publishGroupUpdate(state, groupId);
+
+            // 2. Fetch latest snapshot from relays
+            const fetchRes = await multiSync.fetchGroupStateOnce(groupId, group.syncSecret);
+            if (fetchRes.success && fetchRes.payload) {
+                dispatch({
+                    type: MERGE_GROUP_SYNC_DATA,
+                    payload: fetchRes.payload,
+                    myMemberId: group.myMemberId
+                });
+            }
+
+            setGroupSyncStatus(groupId, {
+                status: 'synced',
+                lastSyncedAt: new Date().toISOString(),
+                error: null
+            });
+            return { success: true };
+        } catch (err) {
+            console.error(`syncGroupNow error for ${groupId}:`, err);
+            setGroupSyncStatus(groupId, { status: 'offline', error: err.message });
+            return { success: false, error: err.message };
+        }
+    }, [state, setGroupSyncStatus]);
+
+    const joinSharedGroup = useCallback(async (inviteCode, myMemberId = null) => {
+        const parsed = multiSync.parseInviteCode(inviteCode);
+        if (!parsed) {
+            return { success: false, error: 'Invalid invite code format. Must start with SPLIT-1-...' };
+        }
+
+        const { groupId, syncSecret } = parsed;
+        setGroupSyncStatus(groupId, { status: 'syncing', error: null });
+
+        try {
+            const fetchRes = await multiSync.fetchGroupStateOnce(groupId, syncSecret, 7000);
+            if (!fetchRes.success || !fetchRes.payload) {
+                setGroupSyncStatus(groupId, { status: 'offline', error: fetchRes.error });
+                return { success: false, error: fetchRes.error || 'Could not fetch group data from relays.' };
+            }
+
+            dispatch({
+                type: MERGE_GROUP_SYNC_DATA,
+                payload: {
+                    ...fetchRes.payload,
+                    syncSecret
+                },
+                myMemberId: myMemberId || null
+            });
+
+            setGroupSyncStatus(groupId, {
+                status: 'live',
+                lastSyncedAt: new Date().toISOString(),
+                error: null
+            });
+
+            return {
+                success: true,
+                groupId,
+                group: fetchRes.payload.group,
+                members: fetchRes.payload.members || []
+            };
+        } catch (err) {
+            console.error('joinSharedGroup error:', err);
+            setGroupSyncStatus(groupId, { status: 'offline', error: err.message });
+            return { success: false, error: err.message || 'Failed to join group' };
+        }
+    }, [setGroupSyncStatus]);
 
     const addUser = (name) => {
         const id = generateId();
@@ -1216,7 +1499,8 @@ export function ExpenseProvider({ children }) {
     // Current User Summary for Active Group or Overall
     const currentUserGroupSummary = useMemo(() => {
         if (state.selectedGroupId) {
-            const debtsInfo = getGroupPairwiseDebts(state.selectedGroupId, state.currentUserId);
+            const effectiveMemberId = selectedGroup?.myMemberId || state.currentUserId;
+            const debtsInfo = getGroupPairwiseDebts(state.selectedGroupId, effectiveMemberId);
             const net = debtsInfo.netBalance;
             return {
                 net,
@@ -1231,7 +1515,7 @@ export function ExpenseProvider({ children }) {
             debts: [],
             allSettlements: []
         };
-    }, [state.selectedGroupId, getGroupPairwiseDebts, state.currentUserId, currentUserOverall]);
+    }, [state.selectedGroupId, selectedGroup?.myMemberId, getGroupPairwiseDebts, state.currentUserId, currentUserOverall]);
 
     return (
         <ExpenseContext.Provider value={{
@@ -1275,7 +1559,21 @@ export function ExpenseProvider({ children }) {
             connectDrive,
             disconnectDrive,
             saveManualToken,
-            mergeAppState
+            mergeAppState,
+            // Zero-Server Multi-User Group Sync (Nostr Relays & E2EE)
+            groupSyncStates,
+            enableGroupSync,
+            disableGroupSync,
+            setGroupMemberIdentity,
+            syncGroupNow,
+            joinSharedGroup,
+            generateInviteCode: multiSync.generateInviteCode,
+            parseInviteCode: multiSync.parseInviteCode,
+            getShareableInviteMessage: multiSync.getShareableInviteMessage,
+            fetchGroupStateOnce: multiSync.fetchGroupStateOnce,
+            getConfiguredRelays: multiSync.getConfiguredRelays,
+            saveConfiguredRelays: multiSync.saveConfiguredRelays,
+            defaultNostrRelays: multiSync.DEFAULT_RELAYS
         }}>
             {children}
         </ExpenseContext.Provider>

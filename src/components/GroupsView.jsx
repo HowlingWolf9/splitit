@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, SlidersHorizontal, ArrowRight, HandCoins, ChevronRight } from 'lucide-react';
+import { Search, Plus, SlidersHorizontal, ArrowRight, HandCoins, ChevronRight, Radio } from 'lucide-react';
+import { useModalBackHandler } from '../utils/backButton';
 import GroupCardBanner from './GroupCardBanner';
 import GroupFormModal from './GroupFormModal';
 import GroupSettleUpModal from './GroupSettleUpModal';
+import JoinSharedGroupModal from './JoinSharedGroupModal';
 
 export default function GroupsView() {
     const navigate = useNavigate();
@@ -19,7 +21,13 @@ export default function GroupsView() {
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState('default'); // 'default', 'balance-desc', 'name-asc'
     const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+    const [showJoinModal, setShowJoinModal] = useState(false);
     const [settleGroupTarget, setSettleGroupTarget] = useState(null);
+
+    useModalBackHandler(showCreateGroupModal, () => setShowCreateGroupModal(false));
+    useModalBackHandler(showJoinModal, () => setShowJoinModal(false));
+    useModalBackHandler(!!settleGroupTarget, () => setSettleGroupTarget(null));
+
 
     const currentUserId = state.currentUserId || state.users[0]?.id;
 
@@ -43,7 +51,8 @@ export default function GroupsView() {
     // Process all groups with debt calculations
     const groupsWithData = useMemo(() => {
         const list = (state.groups || []).map(group => {
-            const debtsInfo = getGroupPairwiseDebts(group.id, currentUserId);
+            const effectiveUserId = group.myMemberId || currentUserId;
+            const debtsInfo = getGroupPairwiseDebts(group.id, effectiveUserId);
             return {
                 ...group,
                 netBalance: debtsInfo.netBalance,
@@ -117,6 +126,19 @@ export default function GroupsView() {
 
                 {/* Primary Action Button (Single canonical + New Group CTA) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowJoinModal(true)}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                            borderColor: 'hsl(var(--color-accent) / 0.4)',
+                            color: 'hsl(var(--color-accent))'
+                        }}
+                        title="Join a shared group with invite code"
+                    >
+                        <Radio size={14} />
+                        <span>Join Group</span>
+                    </button>
                     <button
                         type="button"
                         onClick={() => {
@@ -248,8 +270,26 @@ export default function GroupsView() {
 
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--color-text-main))' }}>
-                                        {group.name}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--color-text-main))' }}>
+                                            {group.name}
+                                        </div>
+                                        {group.isShared && (
+                                            <span style={{
+                                                fontSize: '0.7rem',
+                                                fontWeight: 700,
+                                                padding: '0.1rem 0.45rem',
+                                                borderRadius: 'var(--radius-full)',
+                                                background: 'hsl(var(--color-success) / 0.15)',
+                                                color: 'hsl(var(--color-success))',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '3px'
+                                            }}>
+                                                <Radio size={10} />
+                                                <span>Live</span>
+                                            </span>
+                                        )}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                         {isSelected && (
@@ -387,6 +427,18 @@ export default function GroupsView() {
                     onSuccess={() => setSettleGroupTarget(null)}
                 />
             )}
+
+            {showJoinModal && (
+                <JoinSharedGroupModal
+                    onClose={() => setShowJoinModal(false)}
+                    onSuccess={(newId) => {
+                        setShowJoinModal(false);
+                        setSelectedGroupId(newId);
+                        navigate(`/groups/${newId}`);
+                    }}
+                />
+            )}
+
 
             {/* Floating Action Button */}
             <div className="fab-container">

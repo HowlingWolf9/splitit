@@ -4,7 +4,8 @@ import { useExpenses } from '../store/ExpenseContext';
 import { useModalBackHandler } from '../utils/backButton';
 import {
     ArrowLeft, Plus, Settings, Trash2, Edit3, Scale, Receipt,
-    Users, ArrowRight, CheckCircle2, Calendar, UserCheck, HandCoins
+    Users, ArrowRight, CheckCircle2, Calendar, UserCheck, HandCoins,
+    Radio, Share2, Copy, Check, RefreshCw, ShieldCheck, User, X
 } from 'lucide-react';
 import GroupCardBanner from './GroupCardBanner';
 import GroupFormModal from './GroupFormModal';
@@ -20,6 +21,13 @@ export default function GroupDetailView() {
         deleteGroup,
         getGroupBalances,
         getGroupPairwiseDebts,
+        groupSyncStates,
+        enableGroupSync,
+        disableGroupSync,
+        setGroupMemberIdentity,
+        syncGroupNow,
+        generateInviteCode,
+        getShareableInviteMessage,
     } = useExpenses();
 
     const [activeTab, setActiveTab] = useState('expenses'); // 'expenses', 'balances', 'members'
@@ -27,15 +35,20 @@ export default function GroupDetailView() {
     const [showSettleModal, setShowSettleModal] = useState(false);
     const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
     const [viewingExpense, setViewingExpense] = useState(null);
+    const [showLiveSyncModal, setShowLiveSyncModal] = useState(false);
+    const [codeCopied, setCodeCopied] = useState(false);
+    const [isManualSyncing, setIsManualSyncing] = useState(false);
 
     useModalBackHandler(showEditModal, () => setShowEditModal(false));
     useModalBackHandler(showSettleModal, () => setShowSettleModal(false));
     useModalBackHandler(showAddExpenseModal, () => setShowAddExpenseModal(false));
     useModalBackHandler(!!viewingExpense, () => setViewingExpense(null));
+    useModalBackHandler(showLiveSyncModal, () => setShowLiveSyncModal(false));
 
     const group = (state.groups || []).find(g => g.id === id);
 
-    const currentUserId = state.currentUserId || state.users[0]?.id;
+    // Effective member identity for this group (persisted on group.myMemberId)
+    const currentMemberId = group?.myMemberId || state.currentUserId || state.users[0]?.id;
 
     const formatMoney = (val) => {
         return new Intl.NumberFormat('en-US', {
@@ -49,11 +62,12 @@ export default function GroupDetailView() {
         return u ? u.name : 'Unknown';
     };
 
-    // Calculate group debts and balances
+    // Calculate group debts and balances based on effective member identity
     const groupDebtsInfo = useMemo(() => {
         if (!group) return { netBalance: 0, debts: [], allSettlements: [] };
-        return getGroupPairwiseDebts(group.id, currentUserId);
-    }, [group, getGroupPairwiseDebts, currentUserId]);
+        return getGroupPairwiseDebts(group.id, currentMemberId);
+    }, [group, getGroupPairwiseDebts, currentMemberId]);
+
 
     const memberBalances = useMemo(() => {
         if (!group) return {};
@@ -115,7 +129,31 @@ export default function GroupDetailView() {
                     <span>Back to Groups</span>
                 </button>
 
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowLiveSyncModal(true)}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: 'var(--radius-md)',
+                            border: group.isShared
+                                ? '1px solid hsl(var(--color-success) / 0.4)'
+                                : '1px solid hsl(var(--color-accent) / 0.35)',
+                            background: group.isShared
+                                ? 'hsl(var(--color-success) / 0.12)'
+                                : 'hsl(var(--color-accent) / 0.08)',
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            color: group.isShared ? 'hsl(var(--color-success))' : 'hsl(var(--color-accent))'
+                        }}
+                    >
+                        <Radio size={15} />
+                        <span>{group.isShared ? 'Live Sync' : 'Invite / Sync'}</span>
+                    </button>
+
                     <button
                         type="button"
                         onClick={() => setShowEditModal(true)}
@@ -180,6 +218,79 @@ export default function GroupDetailView() {
                             }}>
                                 {group.type}
                             </span>
+                            {group.isShared && (
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setIsManualSyncing(true);
+                                        await syncGroupNow(group.id);
+                                        setIsManualSyncing(false);
+                                    }}
+                                    title="Click to sync group now with Nostr relays"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        padding: '0.2rem 0.65rem',
+                                        borderRadius: 'var(--radius-full)',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '700',
+                                        border: '1px solid hsl(var(--color-border))',
+                                        cursor: 'pointer',
+                                        background: (groupSyncStates[group.id]?.status === 'live')
+                                            ? 'hsl(var(--color-success) / 0.15)'
+                                            : (groupSyncStates[group.id]?.status === 'syncing' || isManualSyncing)
+                                                ? 'hsl(var(--color-accent) / 0.15)'
+                                                : 'hsl(var(--color-surface-dim))',
+                                        color: (groupSyncStates[group.id]?.status === 'live')
+                                            ? 'hsl(var(--color-success))'
+                                            : (groupSyncStates[group.id]?.status === 'syncing' || isManualSyncing)
+                                                ? 'hsl(var(--color-accent))'
+                                                : 'hsl(var(--color-text-muted))'
+                                    }}
+                                >
+                                    <span style={{
+                                        width: '7px',
+                                        height: '7px',
+                                        borderRadius: '50%',
+                                        background: (groupSyncStates[group.id]?.status === 'live')
+                                            ? 'hsl(var(--color-success))'
+                                            : 'hsl(var(--color-accent))',
+                                        display: 'inline-block'
+                                    }} />
+                                    <span>
+                                        {(groupSyncStates[group.id]?.status === 'syncing' || isManualSyncing)
+                                            ? 'Syncing...'
+                                            : groupSyncStates[group.id]?.status === 'live'
+                                                ? 'Live Sync'
+                                                : 'Synced'}
+                                    </span>
+                                    <RefreshCw size={11} className={(groupSyncStates[group.id]?.status === 'syncing' || isManualSyncing) ? 'spin-animation' : ''} />
+                                </button>
+                            )}
+                            {group.myMemberId && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLiveSyncModal(true)}
+                                    title="Click to switch your member identity"
+                                    style={{
+                                        fontSize: '0.75rem',
+                                        fontWeight: '600',
+                                        padding: '0.2rem 0.65rem',
+                                        borderRadius: 'var(--radius-full)',
+                                        background: 'hsl(var(--color-surface-dim))',
+                                        color: 'hsl(var(--color-text-main))',
+                                        border: '1px solid hsl(var(--color-border))',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <User size={12} style={{ color: 'hsl(var(--color-accent))' }} />
+                                    <span>You: <strong>{getUserName(group.myMemberId)}</strong></span>
+                                </button>
+                            )}
                             {group.defaultCollectorId && (
                                 <span style={{
                                     fontSize: '0.75rem',
@@ -354,11 +465,11 @@ export default function GroupDetailView() {
                             {groupTransactions.map(tx => {
                                 const isExpense = tx.type === 'EXPENSE';
                                 const myPaid = isExpense
-                                    ? (tx.payers?.find(p => p.userId === currentUserId)?.amount || 0)
-                                    : (tx.from === currentUserId ? tx.amount : 0);
+                                    ? (tx.payers?.find(p => p.userId === currentMemberId)?.amount || 0)
+                                    : (tx.from === currentMemberId ? tx.amount : 0);
                                 const myOwed = isExpense
-                                    ? (tx.splits?.find(s => s.userId === currentUserId)?.amount || 0)
-                                    : (tx.to === currentUserId ? tx.amount : 0);
+                                    ? (tx.splits?.find(s => s.userId === currentMemberId)?.amount || 0)
+                                    : (tx.to === currentMemberId ? tx.amount : 0);
                                 const myNetOnTx = myPaid - myOwed;
 
                                 const dateStr = new Date(tx.date).toLocaleDateString('en-US', {
@@ -476,11 +587,11 @@ export default function GroupDetailView() {
                                     >
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                             <span style={{ fontWeight: '700', color: '#ff6b35' }}>
-                                                {getUserName(s.from)} {s.from === currentUserId ? '(You)' : ''}
+                                                {getUserName(s.from)} {s.from === currentMemberId ? '(You)' : ''}
                                             </span>
                                             <ArrowRight size={16} color="hsl(var(--color-text-muted))" />
                                             <span style={{ fontWeight: '700', color: '#00d09c' }}>
-                                                {getUserName(s.to)} {s.to === currentUserId ? '(You)' : ''}
+                                                {getUserName(s.to)} {s.to === currentMemberId ? '(You)' : ''}
                                             </span>
                                         </div>
                                         <div style={{ fontWeight: '800', fontSize: '1.1rem' }}>
@@ -517,7 +628,7 @@ export default function GroupDetailView() {
                                         }}
                                     >
                                         <div style={{ fontWeight: '600' }}>
-                                            {getUserName(mId)} {mId === currentUserId ? <span style={{ opacity: 0.6 }}>(You)</span> : ''}
+                                            {getUserName(mId)} {mId === currentMemberId ? <span style={{ opacity: 0.6 }}>(You)</span> : ''}
                                         </div>
                                         <div style={{
                                             fontWeight: '800',
@@ -555,7 +666,7 @@ export default function GroupDetailView() {
 
                     <div style={{ display: 'grid', gap: '0.75rem' }}>
                         {group.members.map(mId => {
-                            const isYou = mId === currentUserId;
+                            const isYou = mId === currentMemberId;
                             const bal = memberBalances[mId] || 0;
 
                             return (
@@ -649,6 +760,300 @@ export default function GroupDetailView() {
                             expense={viewingExpense}
                             onClose={() => setViewingExpense(null)}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* LIVE SYNC & INVITE BOTTOM SHEET MODAL */}
+            {showLiveSyncModal && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowLiveSyncModal(false);
+                    }}
+                >
+                    <div className="modal-content bottom-sheet" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <div style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: 'var(--radius-md)',
+                                    background: 'hsl(var(--color-accent) / 0.12)',
+                                    color: 'hsl(var(--color-accent))',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <Radio size={20} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>
+                                        Multi-User Live Sync
+                                    </h3>
+                                    <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <ShieldCheck size={13} style={{ color: 'hsl(var(--color-success))' }} />
+                                        <span>Zero-Server • End-to-End Encrypted (AES-256)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="btn-icon"
+                                onClick={() => setShowLiveSyncModal(false)}
+                                title="Close"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {!group.isShared ? (
+                            <div style={{ padding: '0.5rem 0' }}>
+                                <div className="card" style={{
+                                    padding: '1.25rem',
+                                    background: 'hsl(var(--color-surface-dim))',
+                                    border: '1px solid hsl(var(--color-border))',
+                                    marginBottom: '1.5rem',
+                                    borderRadius: 'var(--radius-lg)'
+                                }}>
+                                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.98rem', fontWeight: 700 }}>
+                                        Collaborate with Friends with $0 Server Cost
+                                    </h4>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))', lineHeight: 1.5 }}>
+                                        Enable live sync to generate a private <strong>Group Invite Code</strong>. Any friend who joins this group can add, edit, or settle expenses from their own device. Updates synchronize instantly when online or catch up automatically via decentralized Nostr relays.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', fontWeight: 700 }}
+                                    onClick={async () => {
+                                        await enableGroupSync(group.id);
+                                    }}
+                                >
+                                    <Radio size={18} />
+                                    <span>Enable Live Sync for "{group.name}"</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                {/* Invite Code Block */}
+                                <div className="card" style={{
+                                    padding: '1.25rem',
+                                    background: 'hsl(var(--color-surface-dim))',
+                                    border: '1px solid hsl(var(--color-border))',
+                                    borderRadius: 'var(--radius-lg)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'hsl(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            Group Invite Code
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.72rem',
+                                            fontWeight: 700,
+                                            padding: '0.15rem 0.5rem',
+                                            borderRadius: 'var(--radius-full)',
+                                            background: 'hsl(var(--color-success) / 0.15)',
+                                            color: 'hsl(var(--color-success))'
+                                        }}>
+                                            Active E2EE
+                                        </span>
+                                    </div>
+
+                                    <div style={{
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.88rem',
+                                        padding: '0.75rem 1rem',
+                                        background: 'hsl(var(--color-surface))',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: '1px solid hsl(var(--color-border))',
+                                        wordBreak: 'break-all',
+                                        userSelect: 'all',
+                                        marginBottom: '0.85rem',
+                                        color: 'hsl(var(--color-text-main))',
+                                        fontWeight: 600
+                                    }}>
+                                        {generateInviteCode(group, group.syncSecret)}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            style={{ flex: 1, padding: '0.55rem' }}
+                                            onClick={() => {
+                                                const code = generateInviteCode(group, group.syncSecret);
+                                                navigator.clipboard.writeText(code);
+                                                setCodeCopied(true);
+                                                setTimeout(() => setCodeCopied(false), 2500);
+                                            }}
+                                        >
+                                            {codeCopied ? <Check size={16} style={{ color: 'hsl(var(--color-success))' }} /> : <Copy size={16} />}
+                                            <span>{codeCopied ? 'Copied Code!' : 'Copy Code'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="btn btn-primary"
+                                            style={{ flex: 1, padding: '0.55rem' }}
+                                            onClick={() => {
+                                                const code = generateInviteCode(group, group.syncSecret);
+                                                const msg = getShareableInviteMessage(group, code);
+                                                if (navigator.share) {
+                                                    navigator.share({
+                                                        title: `SplitIt: Join ${group.name}`,
+                                                        text: msg
+                                                    }).catch(() => {});
+                                                } else {
+                                                    navigator.clipboard.writeText(msg);
+                                                    setCodeCopied(true);
+                                                    setTimeout(() => setCodeCopied(false), 2500);
+                                                }
+                                            }}
+                                        >
+                                            <Share2 size={16} />
+                                            <span>Share Invite</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Identity Selector: "Which member are you?" */}
+                                <div className="card" style={{
+                                    padding: '1.25rem',
+                                    border: '1px solid hsl(var(--color-border))',
+                                    borderRadius: 'var(--radius-lg)'
+                                }}>
+                                    <div style={{ marginBottom: '0.75rem' }}>
+                                        <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.95rem', fontWeight: 700 }}>
+                                            Which member are you in this group?
+                                        </h4>
+                                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'hsl(var(--color-text-muted))' }}>
+                                            Select your personal identity so your device calculates "You owe" and "You are owed" accurately.
+                                        </p>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '200px', overflowY: 'auto' }}>
+                                        {(group.members || []).map(memberId => {
+                                            const isMe = currentMemberId === memberId;
+                                            return (
+                                                <div
+                                                    key={memberId}
+                                                    onClick={() => setGroupMemberIdentity(group.id, memberId)}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        padding: '0.6rem 0.85rem',
+                                                        borderRadius: 'var(--radius-md)',
+                                                        cursor: 'pointer',
+                                                        border: isMe
+                                                            ? '2px solid hsl(var(--color-accent))'
+                                                            : '1px solid hsl(var(--color-border))',
+                                                        background: isMe
+                                                            ? 'hsl(var(--color-accent) / 0.08)'
+                                                            : 'hsl(var(--color-surface))'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <User size={16} style={{ color: isMe ? 'hsl(var(--color-accent))' : 'hsl(var(--color-text-muted))' }} />
+                                                        <span style={{ fontWeight: isMe ? 700 : 500, fontSize: '0.9rem' }}>
+                                                            {getUserName(memberId)}
+                                                        </span>
+                                                        {isMe && (
+                                                            <span style={{
+                                                                fontSize: '0.7rem',
+                                                                fontWeight: 700,
+                                                                padding: '0.1rem 0.45rem',
+                                                                borderRadius: 'var(--radius-full)',
+                                                                background: 'hsl(var(--color-accent))',
+                                                                color: '#fff'
+                                                            }}>
+                                                                You
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {isMe && <CheckCircle2 size={18} style={{ color: 'hsl(var(--color-accent))' }} />}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Live Sync Controls & Status */}
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.85rem 1rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    background: 'hsl(var(--color-surface-dim))',
+                                    border: '1px solid hsl(var(--color-border))'
+                                }}>
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 700 }}>
+                                            <span style={{
+                                                width: '8px',
+                                                height: '8px',
+                                                borderRadius: '50%',
+                                                background: groupSyncStates[group.id]?.status === 'live' ? 'hsl(var(--color-success))' : 'hsl(var(--color-accent))'
+                                            }} />
+                                            <span>
+                                                {groupSyncStates[group.id]?.status === 'live'
+                                                    ? 'Connected to Public Nostr Relays'
+                                                    : groupSyncStates[group.id]?.status === 'syncing' || isManualSyncing
+                                                        ? 'Syncing with Relays...'
+                                                        : 'Synced with Relays'}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: '0.74rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
+                                            {groupSyncStates[group.id]?.lastSyncedAt
+                                                ? `Last synchronized: ${new Date(groupSyncStates[group.id].lastSyncedAt).toLocaleTimeString()}`
+                                                : 'Auto-sync active'}
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        disabled={isManualSyncing}
+                                        onClick={async () => {
+                                            setIsManualSyncing(true);
+                                            await syncGroupNow(group.id);
+                                            setIsManualSyncing(false);
+                                        }}
+                                    >
+                                        <RefreshCw size={14} className={isManualSyncing ? 'spin-animation' : ''} />
+                                        <span>Sync Now</span>
+                                    </button>
+                                </div>
+
+                                {/* Danger Zone: Disable Sync */}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
+                                    <button
+                                        type="button"
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'hsl(var(--color-danger))',
+                                            fontSize: '0.8rem',
+                                            cursor: 'pointer',
+                                            padding: '0.3rem 0.5rem'
+                                        }}
+                                        onClick={() => {
+                                            if (window.confirm('Disable live sync for this group? Friends will no longer receive your updates and you will no longer receive theirs.')) {
+                                                disableGroupSync(group.id);
+                                                setShowLiveSyncModal(false);
+                                            }
+                                        }}
+                                    >
+                                        Disable Live Sync
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

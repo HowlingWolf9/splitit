@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { useModalBackHandler } from '../utils/backButton';
-import { X, Users, Plane, ClipboardList, Home, Heart, Sparkles, Plus, Check, HandCoins } from 'lucide-react';
+import { X, Users, Plane, ClipboardList, Home, Heart, Sparkles, Plus, Check, HandCoins, Radio } from 'lucide-react';
+import JoinSharedGroupModal from './JoinSharedGroupModal';
 
 const GROUP_TYPES = [
     { id: 'trip', label: 'Trip', icon: Plane, defaultColor: '#10b981' },
@@ -25,7 +26,7 @@ const PRESET_COLORS = [
 
 export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess }) {
     useModalBackHandler(true, onClose);
-    const { state, addGroup, updateGroup, addUser } = useExpenses();
+    const { state, addGroup, updateGroup, addUser, enableGroupSync } = useExpenses();
     const isEditing = !!groupToEdit;
 
     const [name, setName] = useState(groupToEdit?.name || '');
@@ -33,6 +34,9 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
     const [color, setColor] = useState(groupToEdit?.color || '#10b981');
     const [simplifyDebts, setSimplifyDebts] = useState(groupToEdit?.simplifyDebts ?? true);
     const [defaultCollectorId, setDefaultCollectorId] = useState(groupToEdit?.defaultCollectorId || '');
+    const [enableLiveSync, setEnableLiveSync] = useState(false);
+    const [showJoinModal, setShowJoinModal] = useState(false);
+
 
     // Selected member IDs
     const [selectedMembers, setSelectedMembers] = useState(() => {
@@ -129,6 +133,9 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                 simplifyDebts,
                 defaultCollectorId: defaultCollectorId || null,
             });
+            if (enableLiveSync) {
+                enableGroupSync(newGroupId);
+            }
             onSuccess(newGroupId);
         }
     };
@@ -167,6 +174,40 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                         <X size={22} />
                     </button>
                 </div>
+
+                {!isEditing && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'hsl(var(--color-accent) / 0.08)',
+                        border: '1px solid hsl(var(--color-accent) / 0.25)',
+                        marginBottom: '1rem',
+                        gap: '0.5rem'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-main))' }}>
+                            <Radio size={14} style={{ color: 'hsl(var(--color-accent))', flexShrink: 0 }} />
+                            <span>Have a friend's Group Invite Code?</span>
+                        </div>
+                        <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{
+                                padding: '0.2rem 0.6rem',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                background: 'hsl(var(--color-accent))',
+                                color: '#fff',
+                                whiteSpace: 'nowrap'
+                            }}
+                            onClick={() => setShowJoinModal(true)}
+                        >
+                            Join Group
+                        </button>
+                    </div>
+                )}
 
                 {error && (
                     <div style={{
@@ -439,6 +480,41 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                         </select>
                     </div>
 
+                    {/* Multi-User Live Sync Option */}
+                    {!isEditing && (
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.85rem 1rem',
+                                background: 'hsl(var(--color-surface-dim))',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid hsl(var(--color-border))',
+                                cursor: 'pointer',
+                                gap: '0.75rem'
+                            }}
+                            onClick={() => setEnableLiveSync(prev => !prev)}
+                        >
+                            <div>
+                                <div style={{ fontWeight: '600', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                    <Radio size={16} style={{ color: 'hsl(var(--color-success))' }} />
+                                    <span>Enable Multi-User Live Sync</span>
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.15rem' }}>
+                                    Generates an invite code so multiple friends can add expenses and sync in real-time ($0 server cost).
+                                </div>
+                            </div>
+                            <input
+                                type="checkbox"
+                                checked={enableLiveSync}
+                                onChange={(e) => setEnableLiveSync(e.target.checked)}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ width: '18px', height: '18px', accentColor: 'hsl(var(--color-accent))', cursor: 'pointer' }}
+                            />
+                        </div>
+                    )}
+
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                         <button
@@ -459,6 +535,16 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                     </div>
                 </form>
             </div>
+
+            {showJoinModal && (
+                <JoinSharedGroupModal
+                    onClose={() => setShowJoinModal(false)}
+                    onSuccess={(newId) => {
+                        setShowJoinModal(false);
+                        onSuccess(newId);
+                    }}
+                />
+            )}
         </div>
     );
 }

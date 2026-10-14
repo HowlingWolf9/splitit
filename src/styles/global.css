@@ -702,6 +702,19 @@ input, select, textarea {
     animation: spin 1s linear infinite;
 }
 
+@keyframes pulse-subtle {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+
+.pulse-animation {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 /* Print Styles - Custom Statement Document Print Mode */
 @media screen {
     .print-only {
