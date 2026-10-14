@@ -47,7 +47,7 @@
 ## Windows PC Desktop Application (Electron)
 - **Local Development & Build Scripts**:
   - `npm run electron:dev`: Starts Vite dev server with instant HMR and attaches the Electron window via `--dev-url`.
-  - `npm run build:pc`: Compiles the production bundle (`vite build`) and runs `electron-builder --win --x64`.
+  - `npm run build:pc`: Compiles the production bundle (`vite build`) and runs `electron-builder --win --x64 --publish never`.
 - **Packaging Targets (`release/`)**:
   - **NSIS Setup Installer**: `SplitIt-Setup-<version>.exe` (with customizable install directory, Start Menu, and Desktop shortcuts).
   - **Portable Executable**: `SplitIt-Portable-<version>.exe` (zero-install standalone `.exe` that runs from anywhere or a flash drive).

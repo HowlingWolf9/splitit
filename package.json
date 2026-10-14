@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "node scripts/dev-electron.js",
-    "build:pc": "vite build && electron-builder --win --x64",
+    "build:pc": "vite build && electron-builder --win --x64 --publish never",
     "cap:sync": "cap sync android",
     "cap:open": "cap open android",
     "android:sync": "vite build && cap sync android",
