@@ -16,6 +16,13 @@
      git push origin <branch> --follow-tags
      ```
 
+4. **Mandatory Git Commits Upon Task Completion**:
+   - Always stage and commit all verified changes at the conclusion of every coding task or feature implementation before ending your turn. Never leave verified changes unstaged or uncommitted in the working tree.
+   - Use conventional commit standards (e.g., `feat(...)`, `fix(...)`, `refactor(...)`, `docs(...)`) with clear, descriptive messages summarizing what was accomplished.
+   - Always verify build and lint checks (`npm run lint`, `npm run android:sync`) before creating the commit.
+   - Keep commits local so the user has full control over when to push or tag.
+
+
 ## Android Native UI Standards (Capacitor)
 - **Safe Areas & Insets**: Respect mobile viewport cutouts using CSS environment variables (`var(--safe-area-top)` / `env(safe-area-inset-top)` and `var(--safe-area-bottom)` / `env(safe-area-inset-bottom)`).
 - **Navigation Chrome**: Maintain fixed native bottom navigation (`.bottom-nav-bar`) with tactile active pills and min 48x48px touch targets.
