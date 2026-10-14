@@ -49,36 +49,33 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Determine Version and Create Tag
+      - name: Determine Version and Release Status
         id: versioning
         run: |
           git fetch --tags --force
 
           if [[ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
             TAG_NAME="${GITHUB_REF_NAME}"
-            echo "Using existing tag: $TAG_NAME"
+            IS_RELEASE="true"
+            echo "Triggered by git release tag: $TAG_NAME"
           elif [[ -n "${{ inputs.release_tag }}" ]]; then
             TAG_NAME="${{ inputs.release_tag }}"
-            echo "Using input release tag: $TAG_NAME"
+            IS_RELEASE="${{ inputs.publish_release || 'true' }}"
+            echo "Triggered by manual dispatch with tag: $TAG_NAME"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.publish_release }}" == "true" ]]; then
+            PKG_VERSION=$(node -p "require('./package.json').version")
+            TAG_NAME="v${PKG_VERSION}"
+            IS_RELEASE="true"
+            echo "Triggered by manual dispatch publish with package version: $TAG_NAME"
           else
             PKG_VERSION=$(node -p "require('./package.json').version")
-            BASE_TAG="v${PKG_VERSION}"
-
-            if git rev-parse -q --verify "refs/tags/${BASE_TAG}" >/dev/null; then
-              TAG_NAME="${BASE_TAG}.${{ github.run_number }}"
-            else
-              TAG_NAME="${BASE_TAG}"
-            fi
-
-            echo "Generated automatic version tag: $TAG_NAME"
-
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG_NAME" -m "Automated Release $TAG_NAME"
-            git push origin "$TAG_NAME"
+            TAG_NAME="v${PKG_VERSION}"
+            IS_RELEASE="false"
+            echo "Triggered by branch commit (${GITHUB_REF_NAME}). CI build only, skipping GitHub Release creation."
           fi
 
           echo "RELEASE_TAG=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "IS_RELEASE=$IS_RELEASE" >> $GITHUB_OUTPUT
           CLEAN_VER="${TAG_NAME#v}"
           echo "VERSION_NAME=${CLEAN_VER}" >> $GITHUB_ENV
           echo "VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
@@ -160,6 +157,7 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
+        if: steps.versioning.outputs.IS_RELEASE == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.versioning.outputs.RELEASE_TAG }}
