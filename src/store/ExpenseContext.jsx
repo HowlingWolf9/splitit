@@ -1,4 +1,6 @@
-import React, { createContext, useReducer, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useReducer, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import * as gdrive from '../services/googleDriveSync';
+import { mergeAppState } from '../services/googleDriveSync';
 
 // CURRENCIES
 const CURRENCIES = {
@@ -13,13 +15,13 @@ const CURRENCIES = {
 
 // INITIAL SEED DATA
 const seedUsers = [
-    { id: 'u_you', name: 'Athul' },
-    { id: 'u_adhish', name: 'Adhish' },
-    { id: 'u_suryakiran', name: 'Suryakiran M.' },
-    { id: 'u_vishal', name: 'Vishal' },
-    { id: 'u_shiburaj', name: 'Shiburaj' },
-    { id: 'u_swetha', name: 'Swetha' },
-    { id: 'u_bob', name: 'Bob' },
+    { id: 'u_you', name: 'Athul', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
+    { id: 'u_adhish', name: 'Adhish', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
+    { id: 'u_suryakiran', name: 'Suryakiran M.', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
+    { id: 'u_vishal', name: 'Vishal', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
+    { id: 'u_shiburaj', name: 'Shiburaj', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
+    { id: 'u_swetha', name: 'Swetha', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
+    { id: 'u_bob', name: 'Bob', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
 ];
 
 const seedGroups = [
@@ -31,7 +33,8 @@ const seedGroups = [
         color: '#10b981',
         members: ['u_you', 'u_adhish', 'u_suryakiran', 'u_vishal'],
         simplifyDebts: true,
-        createdAt: '2026-10-01T08:00:00.000Z'
+        createdAt: '2026-10-01T08:00:00.000Z',
+        updatedAt: '2026-10-01T08:00:00.000Z'
     },
     {
         id: 'grp_infosys',
@@ -41,7 +44,8 @@ const seedGroups = [
         color: '#f97316',
         members: ['u_you', 'u_shiburaj', 'u_swetha', 'u_bob'],
         simplifyDebts: true,
-        createdAt: '2026-10-02T10:00:00.000Z'
+        createdAt: '2026-10-02T10:00:00.000Z',
+        updatedAt: '2026-10-02T10:00:00.000Z'
     }
 ];
 
@@ -130,7 +134,7 @@ const seedTransactions = [
     }
 ];
 
-// STABLE INITIAL STATE
+// STABLE INITIAL STATE WITH DELETED IDS TOMBSTONES
 const initialState = {
     users: seedUsers,
     groups: seedGroups,
@@ -138,6 +142,12 @@ const initialState = {
     transactions: seedTransactions,
     currency: 'INR',
     selectedGroupId: null, // null = All Groups, or 'grp_...' or 'non-group'
+    deletedIds: {
+        groups: {},
+        members: {},
+        expenses: {},
+        settlements: {}
+    }
 };
 
 // ACTIONS
@@ -153,6 +163,11 @@ const UPDATE_TRANSACTION = 'UPDATE_TRANSACTION';
 const DELETE_TRANSACTION = 'DELETE_TRANSACTION';
 const SET_CURRENCY = 'SET_CURRENCY';
 const IMPORT_DATA = 'IMPORT_DATA';
+const MERGE_SYNCED_DATA = 'MERGE_SYNCED_DATA';
+
+// CONFLICT-FREE STATE MERGER UTILITY
+// eslint-disable-next-line react-refresh/only-export-components
+export { mergeAppState };
 
 // REDUCER
 function expenseReducer(state, action) {
@@ -163,51 +178,73 @@ function expenseReducer(state, action) {
                 selectedGroupId: action.payload || null
             };
         case ADD_USER: {
-            const newUser = action.payload;
+            const now = new Date().toISOString();
+            const newUser = {
+                ...action.payload,
+                createdAt: action.payload.createdAt || now,
+                updatedAt: action.payload.updatedAt || now
+            };
             return {
                 ...state,
                 users: [...state.users, newUser],
             };
         }
-        case DELETE_USER:
+        case DELETE_USER: {
+            const now = new Date().toISOString();
+            const userId = action.payload;
             return {
                 ...state,
-                users: state.users.filter(u => u.id !== action.payload),
-                // Remove user from groups
+                users: state.users.filter(u => u.id !== userId),
+                // Remove user from groups and update group timestamp
                 groups: (state.groups || []).map(g => ({
                     ...g,
-                    members: g.members.filter(mId => mId !== action.payload)
+                    members: g.members.filter(mId => mId !== userId),
+                    updatedAt: now
                 })),
-                currentUserId: state.currentUserId === action.payload
-                    ? (state.users.find(u => u.id !== action.payload)?.id || '')
+                deletedIds: {
+                    ...state.deletedIds,
+                    members: { ...(state.deletedIds?.members || {}), [userId]: now }
+                },
+                currentUserId: state.currentUserId === userId
+                    ? (state.users.find(u => u.id !== userId)?.id || '')
                     : state.currentUserId
             };
+        }
         case ADD_GROUP: {
+            const now = new Date().toISOString();
             const newGroup = {
                 ...action.payload,
-                createdAt: action.payload.createdAt || new Date().toISOString()
+                createdAt: action.payload.createdAt || now,
+                updatedAt: action.payload.updatedAt || now
             };
             return {
                 ...state,
                 groups: [...(state.groups || []), newGroup]
             };
         }
-        case UPDATE_GROUP:
+        case UPDATE_GROUP: {
+            const now = new Date().toISOString();
             return {
                 ...state,
                 groups: (state.groups || []).map(g =>
-                    g.id === action.payload.id ? { ...g, ...action.payload } : g
+                    g.id === action.payload.id ? { ...g, ...action.payload, updatedAt: now } : g
                 )
             };
+        }
         case DELETE_GROUP: {
+            const now = new Date().toISOString();
             const groupIdToDelete = action.payload;
             return {
                 ...state,
                 selectedGroupId: state.selectedGroupId === groupIdToDelete ? null : state.selectedGroupId,
                 groups: (state.groups || []).filter(g => g.id !== groupIdToDelete),
+                deletedIds: {
+                    ...state.deletedIds,
+                    groups: { ...(state.deletedIds?.groups || {}), [groupIdToDelete]: now }
+                },
                 // Reassign transactions of deleted group to non-group
                 transactions: (state.transactions || []).map(t =>
-                    t.groupId === groupIdToDelete ? { ...t, groupId: null } : t
+                    t.groupId === groupIdToDelete ? { ...t, groupId: null, updatedAt: now } : t
                 )
             };
         }
@@ -243,23 +280,75 @@ function expenseReducer(state, action) {
                 )
             };
         }
-        case DELETE_TRANSACTION:
+        case DELETE_TRANSACTION: {
+            const now = new Date().toISOString();
+            const txId = action.payload;
+            const existingTx = (state.transactions || []).find(t => t.id === txId);
+            const isSettlement = existingTx?.type === 'SETTLEMENT';
             return {
                 ...state,
-                transactions: state.transactions.filter(t => t.id !== action.payload)
+                transactions: state.transactions.filter(t => t.id !== txId),
+                deletedIds: {
+                    ...state.deletedIds,
+                    expenses: isSettlement
+                        ? (state.deletedIds?.expenses || {})
+                        : { ...(state.deletedIds?.expenses || {}), [txId]: now },
+                    settlements: isSettlement
+                        ? { ...(state.deletedIds?.settlements || {}), [txId]: now }
+                        : (state.deletedIds?.settlements || {})
+                }
             };
+        }
         case SET_CURRENCY:
             return {
                 ...state,
                 currency: action.payload
             };
-        case IMPORT_DATA:
+        case MERGE_SYNCED_DATA: {
+            const payload = action.payload || {};
+            return {
+                ...state,
+                users: payload.users || state.users,
+                groups: payload.groups || state.groups,
+                transactions: payload.transactions || state.transactions,
+                deletedIds: payload.deletedIds || state.deletedIds,
+                currency: payload.currency || state.currency,
+                currentUserId: state.currentUserId,
+                selectedGroupId: state.selectedGroupId
+            };
+        }
+        case IMPORT_DATA: {
+            const now = new Date().toISOString();
+            const importedUsers = (action.payload.users || []).map(u => ({
+                ...u,
+                updatedAt: u.updatedAt || u.createdAt || now
+            }));
+            const importedGroups = (action.payload.groups || seedGroups).map(g => ({
+                ...g,
+                updatedAt: g.updatedAt || g.createdAt || now
+            }));
+            const importedTransactions = (action.payload.transactions || []).map(t => ({
+                ...t,
+                updatedAt: t.updatedAt || t.createdAt || now
+            }));
+            const importedDeletedIds = {
+                groups: {},
+                members: {},
+                expenses: {},
+                settlements: {},
+                ...(action.payload.deletedIds || {})
+            };
+
             return {
                 ...state,
                 ...action.payload,
-                groups: action.payload.groups || seedGroups,
-                currentUserId: action.payload.currentUserId || (action.payload.users?.[0]?.id || 'u_you')
+                users: importedUsers,
+                groups: importedGroups,
+                transactions: importedTransactions,
+                deletedIds: importedDeletedIds,
+                currentUserId: action.payload.currentUserId || (importedUsers[0]?.id || 'u_you')
             };
+        }
         default:
             return state;
     }
@@ -377,7 +466,7 @@ export function ExpenseProvider({ children }) {
     // Helper: Safe ID Generator
     const generateId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9));
 
-    // Safe localStorage loading
+    // Safe localStorage loading with automatic backward-compatible timestamp migration
     const loadState = () => {
         try {
             const saved = localStorage.getItem('expense_manager_data');
@@ -401,18 +490,47 @@ export function ExpenseProvider({ children }) {
                         return initialState;
                     }
 
-                    // Ensure groups exists
-                    const groups = Array.isArray(parsed.groups) && parsed.groups.length > 0
+                    const defaultTime = '2026-10-01T08:00:00.000Z';
+                    const users = parsed.users.map(u => ({
+                        ...u,
+                        updatedAt: u.updatedAt || u.createdAt || defaultTime,
+                        createdAt: u.createdAt || defaultTime
+                    }));
+
+                    // Ensure groups exists with updatedAt
+                    const groups = (Array.isArray(parsed.groups) && parsed.groups.length > 0
                         ? parsed.groups
-                        : seedGroups;
+                        : seedGroups).map(g => ({
+                        ...g,
+                        updatedAt: g.updatedAt || g.createdAt || defaultTime,
+                        createdAt: g.createdAt || defaultTime
+                    }));
+
+                    // Ensure transactions have updatedAt
+                    const transactions = parsed.transactions.map(t => ({
+                        ...t,
+                        updatedAt: t.updatedAt || t.createdAt || defaultTime,
+                        createdAt: t.createdAt || defaultTime
+                    }));
+
+                    const deletedIds = {
+                        groups: {},
+                        members: {},
+                        expenses: {},
+                        settlements: {},
+                        ...(parsed.deletedIds || {})
+                    };
 
                     // Ensure currentUserId exists
-                    const currentUserId = parsed.currentUserId || parsed.users[0]?.id || 'u_you';
+                    const currentUserId = parsed.currentUserId || users[0]?.id || 'u_you';
                     const selectedGroupId = parsed.selectedGroupId || null;
 
                     return {
                         ...parsed,
+                        users,
                         groups,
+                        transactions,
+                        deletedIds,
                         currentUserId,
                         selectedGroupId,
                     };
@@ -434,6 +552,252 @@ export function ExpenseProvider({ children }) {
             console.error('Failed to save data to localStorage:', e);
         }
     }, [state]);
+
+    // Cloud Sync State
+    const [syncStatus, setSyncStatus] = useState(() => {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
+        return gdrive.isAuthenticated() ? 'connected' : 'disconnected';
+    });
+    const [syncError, setSyncError] = useState(null);
+    const [lastSyncedAt, setLastSyncedAt] = useState(() => gdrive.getLastSynced());
+    const [isAutoSyncEnabled, setIsAutoSyncEnabledState] = useState(() => gdrive.isAutoSyncEnabled());
+    const [customClientId, setCustomClientIdState] = useState(() => gdrive.getCustomClientId());
+
+    const isSyncingRef = useRef(false);
+    const syncTimerRef = useRef(null);
+    const isInitialRender = useRef(true);
+
+    const setIsAutoSyncEnabled = useCallback((enabled) => {
+        setIsAutoSyncEnabledState(enabled);
+        gdrive.setAutoSyncEnabled(enabled);
+    }, []);
+
+    const setCustomClientId = useCallback((id) => {
+        setCustomClientIdState(id);
+        gdrive.setCustomClientId(id);
+    }, []);
+
+    // Perform bidirectional synchronization
+    const syncNow = useCallback(async () => {
+        if (isSyncingRef.current) return;
+        if (!navigator.onLine) {
+            setSyncStatus('offline');
+            return;
+        }
+        if (!gdrive.isAuthenticated()) {
+            setSyncStatus('disconnected');
+            return;
+        }
+
+        setSyncStatus('syncing');
+        setSyncError(null);
+        isSyncingRef.current = true;
+
+        try {
+            const result = await gdrive.syncWithDrive(state, mergeAppState);
+            if (result.success) {
+                dispatch({
+                    type: MERGE_SYNCED_DATA,
+                    payload: result.mergedState
+                });
+                setLastSyncedAt(result.timestamp);
+                setSyncStatus('connected');
+                setSyncError(null);
+            } else {
+                setSyncError(result.error);
+                if (result.error && (result.error.includes('expired') || result.error.includes('token') || result.error.includes('authenticated'))) {
+                    setSyncStatus('disconnected');
+                } else {
+                    setSyncStatus('error');
+                }
+            }
+        } catch (err) {
+            console.error('Error in syncNow:', err);
+            setSyncError(err.message || 'Sync failed');
+            setSyncStatus('error');
+        } finally {
+            isSyncingRef.current = false;
+        }
+    }, [state]);
+
+    const connectDrive = useCallback(() => {
+        setSyncError(null);
+        gdrive.initiateGoogleAuth({
+            clientId: gdrive.getClientId(),
+            onToken: () => {
+                setSyncStatus('connected');
+                setSyncError(null);
+                setTimeout(() => {
+                    syncNow();
+                }, 100);
+            },
+            onError: (err) => {
+                setSyncError(err.message || 'Google Drive authorization failed');
+                setSyncStatus('error');
+            }
+        });
+    }, [syncNow]);
+
+    const disconnectDrive = useCallback(() => {
+        gdrive.clearAuth();
+        setSyncStatus('disconnected');
+        setSyncError(null);
+    }, []);
+
+    const saveManualToken = useCallback(async (token, hours = 1) => {
+        if (!token || !token.trim()) {
+            disconnectDrive();
+            return { success: false, error: 'Empty token' };
+        }
+        gdrive.setAccessToken(token.trim(), hours * 3600);
+        const test = await gdrive.testConnection(token.trim());
+        if (test.success) {
+            setSyncStatus('connected');
+            setSyncError(null);
+            syncNow();
+            return { success: true };
+        } else {
+            setSyncError(test.error || 'Invalid access token');
+            setSyncStatus('error');
+            return { success: false, error: test.error };
+        }
+    }, [disconnectDrive, syncNow]);
+
+    // Token reception listeners (Popup postMessage, Hash redirect, and Electron IPC)
+    useEffect(() => {
+        // 1. Check current URL hash (for OAuth redirect flow)
+        if (typeof window !== 'undefined' && window.location.hash) {
+            const tokenData = gdrive.parseTokenFromHash(window.location.hash);
+            if (tokenData?.accessToken) {
+                if (window.opener && window.opener !== window) {
+                    try {
+                        window.opener.postMessage({
+                            type: 'SPLITIT_GDRIVE_AUTH_TOKEN',
+                            hash: window.location.hash
+                        }, '*');
+                        window.close();
+                        return;
+                    } catch {
+                        // ignore postMessage error
+                    }
+                }
+                // In main window redirect
+                gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                setSyncStatus('connected');
+                setSyncError(null);
+                setTimeout(() => syncNow(), 200);
+            }
+        }
+
+        // 2. Cross-window postMessage listener (for popup mode)
+        const handleMessage = (event) => {
+            if (event.data?.type === 'SPLITIT_GDRIVE_AUTH_TOKEN' && event.data.hash) {
+                const tokenData = gdrive.parseTokenFromHash(event.data.hash);
+                if (tokenData?.accessToken) {
+                    gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                    setSyncStatus('connected');
+                    setSyncError(null);
+                    setTimeout(() => syncNow(), 200);
+                }
+            }
+        };
+        window.addEventListener('message', handleMessage);
+
+        // 3. Electron native OAuth IPC listener
+        let unsubElectron = null;
+        if (window.electronOAuth?.onTokenReceived) {
+            unsubElectron = window.electronOAuth.onTokenReceived((hashPart) => {
+                const tokenData = gdrive.parseTokenFromHash(hashPart);
+                if (tokenData?.accessToken) {
+                    gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                    setSyncStatus('connected');
+                    setSyncError(null);
+                    setTimeout(() => syncNow(), 200);
+                }
+            });
+        }
+
+        return () => {
+            window.removeEventListener('message', handleMessage);
+            if (typeof unsubElectron === 'function') unsubElectron();
+        };
+    }, [syncNow]);
+
+    // Network status listener (Online / Offline)
+    useEffect(() => {
+        const handleOnline = () => {
+            if (gdrive.isAuthenticated()) {
+                setSyncStatus('connected');
+                if (isAutoSyncEnabled) {
+                    syncNow();
+                }
+            } else {
+                setSyncStatus('disconnected');
+            }
+        };
+
+        const handleOffline = () => {
+            setSyncStatus('offline');
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [isAutoSyncEnabled, syncNow]);
+
+    // Automatic pull on launch and window focus
+    useEffect(() => {
+        const handleFocus = () => {
+            if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine && !isSyncingRef.current) {
+                syncNow();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') handleFocus();
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Trigger on initial startup
+        const launchTimer = setTimeout(() => {
+            if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine) {
+                syncNow();
+            }
+        }, 1200);
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            clearTimeout(launchTimer);
+        };
+    }, [isAutoSyncEnabled, syncNow]);
+
+    // Debounced 3-second auto-sync after user mutations
+    useEffect(() => {
+        if (isInitialRender.current) {
+            isInitialRender.current = false;
+            return;
+        }
+
+        if (isSyncingRef.current) return;
+
+        if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine) {
+            if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+            syncTimerRef.current = setTimeout(() => {
+                syncNow();
+            }, 3000);
+        }
+
+        return () => {
+            if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+        };
+    }, [state, isAutoSyncEnabled, syncNow]);
 
     const addUser = (name) => {
         const id = generateId();
@@ -898,7 +1262,20 @@ export function ExpenseProvider({ children }) {
             setCurrency,
             exportData,
             importData,
-            currencies: CURRENCIES
+            currencies: CURRENCIES,
+            // Google Drive Cloud Sync
+            syncStatus,
+            syncError,
+            lastSyncedAt,
+            isAutoSyncEnabled,
+            setIsAutoSyncEnabled,
+            customClientId,
+            setCustomClientId,
+            syncNow,
+            connectDrive,
+            disconnectDrive,
+            saveManualToken,
+            mergeAppState
         }}>
             {children}
         </ExpenseContext.Provider>

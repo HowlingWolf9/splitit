@@ -53,8 +53,22 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Open external links in default OS web browser instead of hijacking the app window
+  // Open external links in default OS web browser, but allow Google OAuth popup
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.includes('accounts.google.com') || url.includes('google.com/o/oauth2')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 540,
+          height: 680,
+          autoHideMenuBar: true,
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false
+          }
+        }
+      };
+    }
     if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('mailto:')) {
       shell.openExternal(url);
     }
@@ -110,6 +124,28 @@ ipcMain.handle('splitit:print', async (event, title) => {
 
 app.whenReady().then(() => {
   createWindow();
+
+  app.on('web-contents-created', (event, contents) => {
+    // Strip Electron from User-Agent so Google OAuth doesn't trigger disallowed_useragent
+    const ua = contents.getUserAgent();
+    contents.setUserAgent(ua.replace(/\sElectron\/[0-9\.]+/i, ''));
+
+    const checkOAuthUrl = (targetUrl) => {
+      if (targetUrl && (targetUrl.includes('access_token=') || targetUrl.includes('#access_token='))) {
+        const hashPart = targetUrl.split('#')[1] || targetUrl.split('?')[1];
+        if (hashPart && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('splitit:oauth-token', hashPart);
+          const win = BrowserWindow.fromWebContents(contents);
+          if (win && win !== mainWindow) {
+            win.close();
+          }
+        }
+      }
+    };
+
+    contents.on('will-navigate', (e, navUrl) => checkOAuthUrl(navUrl));
+    contents.on('will-redirect', (e, navUrl) => checkOAuthUrl(navUrl));
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
