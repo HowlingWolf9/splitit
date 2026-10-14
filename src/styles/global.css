@@ -648,6 +648,12 @@ input, select, textarea {
         size: A4 portrait;
     }
 
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+
     html, body, #root, main, .container {
         background: #ffffff !important;
         color: #111827 !important;
@@ -658,28 +664,46 @@ input, select, textarea {
         margin: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
+        min-height: auto !important;
+        height: auto !important;
+        overflow: visible !important;
         box-shadow: none !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
     }
 
-    /* Hide ALL screen-only UI elements, headers, modals, and screen wrappers */
+    /* Strictly hide ALL screen-only UI elements, headers, bottom bars, modals, FABs, and action buttons */
     .screen-only,
     .print-hide,
     .modal-overlay,
     .modal-content,
     .print-modal-active,
+    .bottom-sheet-handle,
     header,
+    .desktop-header,
+    .mobile-top-bar,
+    .top-app-bar,
     nav,
     .nav-desktop,
+    .bottom-nav-bar,
+    .bottom-nav-item,
     .mobile-menu-btn,
     button,
     input,
     select,
+    textarea,
     .fab,
-    .floating-action-button {
+    .fab-container,
+    .floating-action-button,
+    .toast,
+    .banner {
         display: none !important;
         visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
     }
 
     /* Print Document Container - Strictly show only single print target */
@@ -707,11 +731,22 @@ input, select, textarea {
 
     /* Avoid page breaks inside table rows, cards, and sections */
     .print-avoid-break,
-    tr,
     .print-kpi-card,
-    .print-signature-section {
+    .print-kpi-grid,
+    .print-collector-banner,
+    .print-section-header,
+    .print-signature-section,
+    tr {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+    }
+
+    thead {
+        display: table-header-group !important;
+    }
+
+    tfoot {
+        display: table-footer-group !important;
     }
 
     table {

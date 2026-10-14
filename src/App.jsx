@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
 import { ExpenseProvider, useExpenses } from './store/ExpenseContext';
 import { initVisualViewport, popBackAction, useModalBackHandler } from './utils/backButton';

@@ -21,6 +21,7 @@ import {
 import SettlementForm from './SettlementForm';
 import CustomPrintStatement from './CustomPrintStatement';
 import { useModalBackHandler } from '../utils/backButton';
+import { triggerPrint, formatPrintDocumentTitle } from '../utils/printHelper';
 
 export default function BalancesView() {
     const {
@@ -555,7 +556,9 @@ export default function BalancesView() {
     };
 
     const handleExecutePrint = () => {
-        window.print();
+        const groupLabel = activeGroup ? activeGroup.name : (groupFilter === 'non-group' ? 'Non_Group' : 'All_Groups');
+        const docTitle = formatPrintDocumentTitle(`Statement_${groupLabel}`);
+        triggerPrint(docTitle);
     };
 
     return (

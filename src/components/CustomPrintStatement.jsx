@@ -214,18 +214,28 @@ export default function CustomPrintStatement({
             </div>
 
             {/* EXECUTIVE FINANCIAL SUMMARY KPI CARDS */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '0.75rem',
-                marginBottom: '1.25rem'
-            }}>
-                <div style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    padding: '0.65rem 0.85rem',
-                    background: '#f9fafb'
-                }}>
+            <div
+                className="print-kpi-grid print-avoid-break"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '0.75rem',
+                    marginBottom: '1.25rem',
+                    breakInside: 'avoid',
+                    pageBreakInside: 'avoid'
+                }}
+            >
+                <div
+                    className="print-kpi-card print-avoid-break"
+                    style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '0.65rem 0.85rem',
+                        background: '#f9fafb',
+                        breakInside: 'avoid',
+                        pageBreakInside: 'avoid'
+                    }}
+                >
                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
                         Total Group Spend
                     </div>
@@ -237,12 +247,17 @@ export default function CustomPrintStatement({
                     </div>
                 </div>
 
-                <div style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    padding: '0.65rem 0.85rem',
-                    background: '#f9fafb'
-                }}>
+                <div
+                    className="print-kpi-card print-avoid-break"
+                    style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '0.65rem 0.85rem',
+                        background: '#f9fafb',
+                        breakInside: 'avoid',
+                        pageBreakInside: 'avoid'
+                    }}
+                >
                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
                         Total Settlement Pool
                     </div>
@@ -254,12 +269,17 @@ export default function CustomPrintStatement({
                     </div>
                 </div>
 
-                <div style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    padding: '0.65rem 0.85rem',
-                    background: '#f9fafb'
-                }}>
+                <div
+                    className="print-kpi-card print-avoid-break"
+                    style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '0.65rem 0.85rem',
+                        background: '#f9fafb',
+                        breakInside: 'avoid',
+                        pageBreakInside: 'avoid'
+                    }}
+                >
                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
                         Transactions Needed
                     </div>
@@ -271,12 +291,17 @@ export default function CustomPrintStatement({
                     </div>
                 </div>
 
-                <div style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    padding: '0.65rem 0.85rem',
-                    background: '#f9fafb'
-                }}>
+                <div
+                    className="print-kpi-card print-avoid-break"
+                    style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '0.65rem 0.85rem',
+                        background: '#f9fafb',
+                        breakInside: 'avoid',
+                        pageBreakInside: 'avoid'
+                    }}
+                >
                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
                         Settlement Status
                     </div>
@@ -291,18 +316,23 @@ export default function CustomPrintStatement({
 
             {/* PRIMARY COLLECTOR ROUTING NOTICE (IF ACTIVE) */}
             {activeCollectorId && (
-                <div style={{
-                    border: '1px solid #6ee7b7',
-                    background: '#f0fdf4',
-                    borderRadius: '8px',
-                    padding: '0.65rem 0.95rem',
-                    marginBottom: '1.25rem',
-                    fontSize: '0.82rem',
-                    color: '#065f46',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.65rem'
-                }}>
+                <div
+                    className="print-collector-banner print-avoid-break"
+                    style={{
+                        border: '1px solid #6ee7b7',
+                        background: '#f0fdf4',
+                        borderRadius: '8px',
+                        padding: '0.65rem 0.95rem',
+                        marginBottom: '1.25rem',
+                        fontSize: '0.82rem',
+                        color: '#065f46',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.65rem',
+                        breakInside: 'avoid',
+                        pageBreakInside: 'avoid'
+                    }}
+                >
                     <div style={{
                         width: '22px',
                         height: '22px',
@@ -555,11 +585,16 @@ export default function CustomPrintStatement({
 
             {/* SECTION 2: MEMBER ACCOUNT POSITION (BALANCE SHEET) */}
             {includeMemberBalances && (
-                <div style={{
-                    marginBottom: '1.5rem',
-                    pageBreakBefore: 'always',
-                    breakBefore: 'page'
-                }}>
+                <div
+                    className="print-section-member-balances print-avoid-break"
+                    style={{
+                        marginBottom: '1.5rem',
+                        pageBreakBefore: settlements.length > 3 ? 'always' : 'auto',
+                        breakBefore: settlements.length > 3 ? 'page' : 'auto',
+                        breakInside: 'avoid',
+                        pageBreakInside: 'avoid'
+                    }}
+                >
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -701,12 +736,16 @@ export default function CustomPrintStatement({
 
             {/* SECTION 3: SIGN-OFF, VERIFICATION & FOOTER */}
             {includeSignatures && (
-                <div style={{
-                    marginTop: '1.5rem',
-                    borderTop: '1px solid #d1d5db',
-                    paddingTop: '1rem',
-                    pageBreakInside: 'avoid'
-                }}>
+                <div
+                    className="print-signature-section print-avoid-break"
+                    style={{
+                        marginTop: '1.5rem',
+                        borderTop: '1px solid #d1d5db',
+                        paddingTop: '1rem',
+                        breakInside: 'avoid',
+                        pageBreakInside: 'avoid'
+                    }}
+                >
                     <div style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(2, 1fr)',
