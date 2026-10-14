@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
+import { useModalBackHandler } from '../utils/backButton';
 import { CheckCircle2, Trash2, Layers, ArrowLeftRight, Plus, Check } from 'lucide-react';
 
 const getStorageItem = (key) => {
@@ -20,6 +21,7 @@ const setStorageItem = (key, val) => {
 };
 
 export default function SettlementForm({ onCancel, onSuccess, editingSettlement = null, defaultGroupId = null, defaultFrom = null, defaultTo = null, defaultAmount = null }) {
+    useModalBackHandler(true, onCancel);
     const { state, addSettlement, updateSettlement, deleteTransaction } = useExpenses();
     const isEditing = !!editingSettlement;
     const amountInputRef = useRef(null);
@@ -170,6 +172,7 @@ export default function SettlementForm({ onCancel, onSuccess, editingSettlement 
 
     return (
         <div className="card" style={{ border: '1px solid hsl(var(--color-success) / 0.5)', boxShadow: 'var(--shadow-lg)' }}>
+            <div className="bottom-sheet-handle" />
             {/* Header with Title and Bulk Mode Switch */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <div>

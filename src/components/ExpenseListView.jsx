@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { Edit2, Eye, ArrowUpDown, Plus, Search, Receipt } from 'lucide-react';
 import ExpenseForm from './ExpenseForm';
+import { useModalBackHandler } from '../utils/backButton';
 
 export default function ExpenseListView({ onEditTransaction, onViewTransaction }) {
     const { state, selectedGroupId, setSelectedGroupId, selectedGroup } = useExpenses();
@@ -53,6 +54,8 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
         setShowForm(false);
         setEditingTransaction(null);
     };
+
+    useModalBackHandler(showForm, handleCloseForm);
 
     const handleGroupFilterChange = (e) => {
         const val = e.target.value;
@@ -319,6 +322,7 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                     }}
                 >
                     <div className="modal-content" style={{ maxWidth: '800px' }}>
+                        <div className="bottom-sheet-handle" />
                         <ExpenseForm
                             onCancel={handleCloseForm}
                             onSuccess={handleCloseForm}

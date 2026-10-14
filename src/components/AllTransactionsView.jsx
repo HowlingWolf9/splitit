@@ -4,6 +4,7 @@ import { Search, History, Plus, HandCoins } from 'lucide-react';
 import TransactionList from './TransactionList';
 import ExpenseForm from './ExpenseForm';
 import SettlementForm from './SettlementForm';
+import { useModalBackHandler } from '../utils/backButton';
 
 export default function AllTransactionsView({ onViewTransaction, onViewSettlement }) {
     const { state, selectedGroupId, setSelectedGroupId, selectedGroup } = useExpenses();
@@ -13,6 +14,11 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
     const [editingSettlement, setEditingSettlement] = useState(null);
     const [isAddingExpense, setIsAddingExpense] = useState(false);
     const [isAddingSettlement, setIsAddingSettlement] = useState(false);
+
+    useModalBackHandler(!!editingExpense, () => setEditingExpense(null));
+    useModalBackHandler(!!editingSettlement, () => setEditingSettlement(null));
+    useModalBackHandler(isAddingExpense, () => setIsAddingExpense(false));
+    useModalBackHandler(isAddingSettlement, () => setIsAddingSettlement(false));
 
     const groupFilter = selectedGroupId === 'non-group' ? 'NON_GROUP' : (selectedGroupId || 'ALL');
 
@@ -203,6 +209,7 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     }}
                 >
                     <div className="modal-content" style={{ maxWidth: '800px' }}>
+                        <div className="bottom-sheet-handle" />
                         <ExpenseForm
                             editingTransaction={editingExpense}
                             onCancel={() => setEditingExpense(null)}
@@ -220,6 +227,7 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     }}
                 >
                     <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
                         <SettlementForm
                             editingSettlement={editingSettlement}
                             onCancel={() => setEditingSettlement(null)}
@@ -238,6 +246,7 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     }}
                 >
                     <div className="modal-content" style={{ maxWidth: '800px' }}>
+                        <div className="bottom-sheet-handle" />
                         <ExpenseForm
                             onCancel={() => setIsAddingExpense(false)}
                             onSuccess={() => setIsAddingExpense(false)}
@@ -256,6 +265,7 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     }}
                 >
                     <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
                         <SettlementForm
                             onCancel={() => setIsAddingSettlement(false)}
                             onSuccess={() => setIsAddingSettlement(false)}

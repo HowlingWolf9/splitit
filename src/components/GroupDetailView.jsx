@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useExpenses } from '../store/ExpenseContext';
+import { useModalBackHandler } from '../utils/backButton';
 import {
     ArrowLeft, Plus, Settings, Trash2, Edit3, Scale, Receipt,
     Users, ArrowRight, CheckCircle2, Calendar, UserCheck, HandCoins
@@ -26,6 +27,11 @@ export default function GroupDetailView() {
     const [showSettleModal, setShowSettleModal] = useState(false);
     const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
     const [viewingExpense, setViewingExpense] = useState(null);
+
+    useModalBackHandler(showEditModal, () => setShowEditModal(false));
+    useModalBackHandler(showSettleModal, () => setShowSettleModal(false));
+    useModalBackHandler(showAddExpenseModal, () => setShowAddExpenseModal(false));
+    useModalBackHandler(!!viewingExpense, () => setViewingExpense(null));
 
     const group = (state.groups || []).find(g => g.id === id);
 
@@ -72,7 +78,7 @@ export default function GroupDetailView() {
         return (
             <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
                 <p>Group not found.</p>
-                <button className="btn" onClick={() => navigate('/')} style={{ marginTop: '1rem' }}>
+                <button className="btn" onClick={() => navigate('/groups')} style={{ marginTop: '1rem' }}>
                     Back to Groups
                 </button>
             </div>
@@ -82,7 +88,7 @@ export default function GroupDetailView() {
     const handleDeleteGroup = () => {
         if (window.confirm(`Are you sure you want to delete "${group.name}"? Transactions in this group will be converted to non-group expenses.`)) {
             deleteGroup(group.id);
-            navigate('/');
+            navigate('/groups');
         }
     };
 
@@ -95,18 +101,18 @@ export default function GroupDetailView() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                 <button
                     type="button"
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/groups')}
+                    className="btn btn-secondary btn-sm"
                     style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.4rem',
-                        color: 'hsl(var(--color-text-muted))',
-                        fontWeight: '600',
-                        fontSize: '0.9rem'
+                        gap: '0.45rem',
+                        minHeight: '44px',
+                        padding: '0.4rem 0.85rem'
                     }}
                 >
                     <ArrowLeft size={18} />
-                    All Groups
+                    <span>Back to Groups</span>
                 </button>
 
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -614,26 +620,13 @@ export default function GroupDetailView() {
 
             {showAddExpenseModal && (
                 <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.7)',
-                        backdropFilter: 'blur(4px)',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        zIndex: 1100,
-                        padding: '1rem',
-                        overflowY: 'auto'
-                    }}
+                    className="modal-overlay"
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowAddExpenseModal(false);
                     }}
                 >
-                    <div style={{ marginTop: '2rem', marginBottom: '2rem', width: '100%', maxWidth: '800px' }}>
+                    <div className="modal-content" style={{ maxWidth: '800px' }}>
+                        <div className="bottom-sheet-handle" />
                         <ExpenseForm
                             defaultGroupId={group.id}
                             onCancel={() => setShowAddExpenseModal(false)}
@@ -645,26 +638,13 @@ export default function GroupDetailView() {
 
             {viewingExpense && (
                 <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.7)',
-                        backdropFilter: 'blur(4px)',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        zIndex: 1100,
-                        padding: '1rem',
-                        overflowY: 'auto'
-                    }}
+                    className="modal-overlay"
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setViewingExpense(null);
                     }}
                 >
-                    <div style={{ marginTop: '2rem', marginBottom: '2rem', width: '100%', maxWidth: '600px' }}>
+                    <div className="modal-content" style={{ maxWidth: '640px' }}>
+                        <div className="bottom-sheet-handle" />
                         <ExpenseDetailView
                             expense={viewingExpense}
                             onClose={() => setViewingExpense(null)}

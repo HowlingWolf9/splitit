@@ -20,6 +20,7 @@
     "release:major": "npm version major && git push --follow-tags"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.3",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",

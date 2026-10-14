@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
+import { useModalBackHandler } from '../utils/backButton';
 import { X, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function GroupSettleUpModal({ group, onClose, onSuccess }) {
+    useModalBackHandler(true, onClose);
     const { state, addSettlement, getGroupPairwiseDebts } = useExpenses();
     const currentUserId = state.currentUserId;
 
@@ -72,48 +74,36 @@ export default function GroupSettleUpModal({ group, onClose, onSuccess }) {
 
     return (
         <div
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'rgba(0, 0, 0, 0.7)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1100,
-                padding: '1rem',
-                overflowY: 'auto'
-            }}
+            className="modal-overlay"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div
-                className="card"
+                className="modal-content"
                 style={{
-                    width: '100%',
                     maxWidth: '520px',
-                    margin: 'auto',
-                    padding: '2rem',
-                    boxShadow: 'var(--shadow-lg)',
-                    maxHeight: '90vh',
+                    padding: '1.25rem 1.5rem',
                     overflowY: 'auto',
                 }}
             >
+                <div className="bottom-sheet-handle" />
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', marginTop: '0.25rem' }}>
                     <div>
-                        <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '700' }}>
+                        <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '700' }}>
                             Settle Up in {group.name}
                         </h2>
-                        <div style={{ fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
+                        <div style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
                             Record a payment to balance group debts
                         </div>
                     </div>
-                    <button onClick={onClose} style={{ color: 'hsl(var(--color-text-muted))', padding: '0.25rem' }}>
+                    <button
+                        onClick={onClose}
+                        className="btn-icon"
+                        title="Close"
+                        style={{ color: 'hsl(var(--color-text-muted))' }}
+                    >
                         <X size={22} />
                     </button>
                 </div>

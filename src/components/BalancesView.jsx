@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import SettlementForm from './SettlementForm';
 import CustomPrintStatement from './CustomPrintStatement';
+import { useModalBackHandler } from '../utils/backButton';
 
 export default function BalancesView() {
     const {
@@ -41,6 +42,9 @@ export default function BalancesView() {
         includeMemberBalances: true,
         includeSignatures: true
     });
+
+    useModalBackHandler(!!settleTarget, () => setSettleTarget(null));
+    useModalBackHandler(showPrintModal, () => setShowPrintModal(false));
 
     const handleGroupFilterChange = (e) => {
         const val = e.target.value;
@@ -1094,6 +1098,7 @@ export default function BalancesView() {
                         }}
                     >
                         <div className="modal-content" style={{ maxWidth: '600px' }}>
+                            <div className="bottom-sheet-handle" />
                             <SettlementForm
                                 defaultFrom={settleTarget.from}
                                 defaultTo={settleTarget.to}
@@ -1148,6 +1153,7 @@ export default function BalancesView() {
                             borderRadius: 'var(--radius-lg)'
                         }}
                     >
+                        <div className="bottom-sheet-handle" />
                         {/* Modal Header Bar */}
                         <div
                             className="print-modal-header"

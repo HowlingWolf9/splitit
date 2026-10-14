@@ -95,6 +95,9 @@ export default function GroupCardBanner({ type = 'other', icon = 'users', color 
                 justifyContent: 'center',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
                 background: palette.dark,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                transition: 'transform var(--transition-fast)'
             }}
         >
             {/* Geometric faceted background */}

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
+import { useModalBackHandler } from '../utils/backButton';
 import { CheckCircle2, Trash2, Layers, Plus, Check, HandCoins } from 'lucide-react';
 import PayerSelector from './PayerSelector';
 import SplitSelector from './SplitSelector';
@@ -22,6 +23,7 @@ const setStorageItem = (key, val) => {
 };
 
 export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = null, defaultGroupId = null }) {
+    useModalBackHandler(true, onCancel);
     const { state, addExpense, updateExpense, addUser, deleteTransaction } = useExpenses();
     const isEditing = !!editingTransaction;
     const descInputRef = useRef(null);
@@ -342,6 +344,7 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
 
     return (
         <div className="card" style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <div className="bottom-sheet-handle" />
             {/* Header with Title and Bulk Mode Switch */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <div>

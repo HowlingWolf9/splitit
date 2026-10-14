@@ -28,22 +28,28 @@ export default function SplitSelector({
     const toggleContainerStyle = {
         display: 'flex',
         background: 'hsl(var(--color-bg))',
-        borderRadius: 'var(--radius-sm)',
-        padding: '2px',
-        gap: '2px'
+        borderRadius: 'var(--radius-md)',
+        padding: '3px',
+        gap: '3px',
+        border: '1px solid hsl(var(--color-border))'
     };
 
     const toggleBtnStyle = (isActive) => ({
         flex: 1,
-        padding: '0.25rem 0.75rem',
+        minHeight: '44px',
+        padding: '0.45rem 0.85rem',
         borderRadius: 'var(--radius-sm)',
         fontSize: '0.85rem',
-        fontWeight: isActive ? 600 : 400,
+        fontWeight: isActive ? 700 : 500,
         background: isActive ? 'hsl(var(--color-primary))' : 'transparent',
         color: isActive ? 'hsl(var(--color-text-inverted))' : 'hsl(var(--color-text-muted))',
         cursor: 'pointer',
-        textAlign: 'center',
-        transition: 'all var(--transition-fast)'
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all var(--transition-fast)',
+        WebkitTapHighlightColor: 'transparent',
+        userSelect: 'none'
     });
 
     const splits = getSplits();
@@ -52,10 +58,10 @@ export default function SplitSelector({
     const remainingDiff = Math.round((totalAmount - currentSplitTotal) * 100) / 100;
 
     return (
-        <div style={{ padding: '1rem', border: '1px solid hsl(var(--color-text-muted) / 0.2)', borderRadius: 'var(--radius-md)' }}>
+        <div style={{ padding: '1rem', border: '1px solid hsl(var(--color-border))', borderRadius: 'var(--radius-md)', background: 'hsl(var(--color-surface))' }}>
             {/* Header: Title and Mode Toggles */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>Split How?</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Split How?</span>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button
                         type="button"
@@ -65,13 +71,15 @@ export default function SplitSelector({
                             setSplitSelected(allSelected);
                         }}
                         style={{
-                            fontSize: '0.75rem',
-                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.78rem',
+                            minHeight: '38px',
+                            padding: '0.35rem 0.65rem',
                             background: 'hsl(var(--color-success) / 0.1)',
                             color: 'hsl(var(--color-success))',
                             border: '1px solid hsl(var(--color-success) / 0.3)',
                             borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            fontWeight: 600
                         }}
                     >
                         Select All
@@ -84,21 +92,23 @@ export default function SplitSelector({
                             setSplitSelected(noneSelected);
                         }}
                         style={{
-                            fontSize: '0.75rem',
-                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.78rem',
+                            minHeight: '38px',
+                            padding: '0.35rem 0.65rem',
                             background: 'hsl(var(--color-danger) / 0.1)',
                             color: 'hsl(var(--color-danger))',
                             border: '1px solid hsl(var(--color-danger) / 0.3)',
                             borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            fontWeight: 600
                         }}
                     >
                         Deselect All
                     </button>
                     <div style={toggleContainerStyle}>
-                        <div onClick={() => setSplitMode('EQUAL')} style={toggleBtnStyle(splitMode === 'EQUAL')}>Equally</div>
-                        <div onClick={() => setSplitMode('SHARES')} style={toggleBtnStyle(splitMode === 'SHARES')}>Shares</div>
-                        <div onClick={() => setSplitMode('EXACT_AMOUNTS')} style={toggleBtnStyle(splitMode === 'EXACT_AMOUNTS')}>Amounts</div>
+                        <button type="button" onClick={() => setSplitMode('EQUAL')} style={toggleBtnStyle(splitMode === 'EQUAL')}>Equally</button>
+                        <button type="button" onClick={() => setSplitMode('SHARES')} style={toggleBtnStyle(splitMode === 'SHARES')}>Shares</button>
+                        <button type="button" onClick={() => setSplitMode('EXACT_AMOUNTS')} style={toggleBtnStyle(splitMode === 'EXACT_AMOUNTS')}>Amounts</button>
                     </div>
                 </div>
             </div>
@@ -111,14 +121,30 @@ export default function SplitSelector({
                 const isManual = !!splitAmountsManual[u.id];
 
                 return (
-                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', padding: '0.25rem 0', gap: '0.5rem' }}>
+                    <div
+                        key={u.id}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem',
+                            padding: '0.4rem 0.25rem',
+                            gap: '0.65rem',
+                            minHeight: '44px'
+                        }}
+                    >
                         <input
                             type="checkbox"
                             checked={isSelected}
+                            id={`split-check-${u.id}`}
                             onChange={e => setSplitSelected({ ...splitSelected, [u.id]: e.target.checked })}
-                            style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer', flexShrink: 0 }}
+                            style={{ width: '1.35rem', height: '1.35rem', cursor: 'pointer', flexShrink: 0, accentColor: 'hsl(var(--color-accent))' }}
                         />
-                        <span style={{ flex: 1, fontWeight: 500, opacity: isSelected ? 1 : 0.45 }}>{u.name}</span>
+                        <label
+                            htmlFor={`split-check-${u.id}`}
+                            style={{ flex: 1, fontWeight: 600, fontSize: '0.92rem', opacity: isSelected ? 1 : 0.45, cursor: 'pointer' }}
+                        >
+                            {u.name}
+                        </label>
 
                         {isSelected && splitMode === 'SHARES' && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -126,12 +152,14 @@ export default function SplitSelector({
                                     type="number"
                                     min="0"
                                     step="any"
+                                    inputMode="decimal"
                                     value={splitShares[u.id] !== undefined ? splitShares[u.id] : 1}
                                     onChange={e => setSplitShares({ ...splitShares, [u.id]: e.target.value })}
                                     style={{
-                                        width: '75px',
-                                        padding: '0.3rem 0.45rem',
-                                        fontSize: '0.85rem',
+                                        width: '80px',
+                                        minHeight: '40px',
+                                        padding: '0.4rem 0.55rem',
+                                        fontSize: '0.88rem',
                                         borderRadius: 'var(--radius-sm)',
                                         border: '1px solid hsl(var(--color-border))',
                                         background: 'hsl(var(--color-surface))',
@@ -139,18 +167,19 @@ export default function SplitSelector({
                                     }}
                                     placeholder="Shares"
                                 />
-                                <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', minWidth: '70px', textAlign: 'right' }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'hsl(var(--color-text-muted))', minWidth: '70px', textAlign: 'right' }}>
                                     {formatMoney(assignedAmount)}
                                 </span>
                             </div>
                         )}
 
                         {isSelected && splitMode === 'EXACT_AMOUNTS' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                                 <input
                                     type="number"
                                     step="0.01"
                                     min="0"
+                                    inputMode="decimal"
                                     value={splitAmounts[u.id] !== undefined ? splitAmounts[u.id] : ''}
                                     onChange={e => {
                                         const val = e.target.value;
@@ -164,9 +193,10 @@ export default function SplitSelector({
                                         }
                                     }}
                                     style={{
-                                        width: '95px',
-                                        padding: '0.3rem 0.5rem',
-                                        fontSize: '0.85rem',
+                                        width: '100px',
+                                        minHeight: '40px',
+                                        padding: '0.4rem 0.6rem',
+                                        fontSize: '0.88rem',
                                         borderRadius: 'var(--radius-sm)',
                                         border: isManual ? '1px solid hsl(var(--color-accent))' : '1px solid hsl(var(--color-border))',
                                         background: 'hsl(var(--color-surface))',

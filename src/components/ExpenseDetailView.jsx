@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { X, User, Split, Edit2, HandCoins, CheckCircle2 } from 'lucide-react';
+import { useModalBackHandler } from '../utils/backButton';
+import { X, User, Split, Edit2, HandCoins, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 export default function ExpenseDetailView({ expense, onClose, onEdit }) {
+    useModalBackHandler(true, onClose);
     const { state, addSettlement } = useExpenses();
     const [settleSuccessMsg, setSettleSuccessMsg] = useState('');
 
@@ -36,7 +38,8 @@ export default function ExpenseDetailView({ expense, onClose, onEdit }) {
     const group = (state.groups || []).find(g => g.id === expense.groupId);
 
     return (
-        <div style={{ padding: '1.5rem', display: 'grid', gap: '1.25rem' }}>
+        <div style={{ padding: '1.25rem 1.5rem', display: 'grid', gap: '1.25rem' }}>
+            <div className="bottom-sheet-handle" />
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                 <div>

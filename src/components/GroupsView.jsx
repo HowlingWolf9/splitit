@@ -234,7 +234,7 @@ export default function GroupsView() {
                             }}
                             onClick={() => {
                                 setSelectedGroupId(group.id);
-                                navigate('/dashboard');
+                                navigate(`/groups/${group.id}`);
                             }}
                         >
                             <div style={{ flexShrink: 0 }}>

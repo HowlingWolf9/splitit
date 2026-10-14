@@ -1,8 +1,10 @@
 import React from 'react';
 import { useExpenses } from '../store/ExpenseContext';
+import { useModalBackHandler } from '../utils/backButton';
 import { X, ArrowRight, Edit2 } from 'lucide-react';
 
 export default function SettlementDetailView({ settlement, onClose, onEdit }) {
+    useModalBackHandler(true, onClose);
     const { state } = useExpenses();
 
     const fromUser = state.users.find(u => u.id === settlement.from);
@@ -25,7 +27,8 @@ export default function SettlementDetailView({ settlement, onClose, onEdit }) {
     };
 
     return (
-        <div style={{ padding: '1.5rem', display: 'grid', gap: '1.25rem' }}>
+        <div style={{ padding: '1.25rem 1.5rem', display: 'grid', gap: '1.25rem' }}>
+            <div className="bottom-sheet-handle" />
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                 <div>

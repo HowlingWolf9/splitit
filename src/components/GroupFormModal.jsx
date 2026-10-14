@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
+import { useModalBackHandler } from '../utils/backButton';
 import { X, Users, Plane, ClipboardList, Home, Heart, Sparkles, Plus, Check, HandCoins } from 'lucide-react';
 
 const GROUP_TYPES = [
@@ -23,6 +24,7 @@ const PRESET_COLORS = [
 ];
 
 export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess }) {
+    useModalBackHandler(true, onClose);
     const { state, addGroup, updateGroup, addUser } = useExpenses();
     const isEditing = !!groupToEdit;
 
@@ -133,48 +135,32 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
 
     return (
         <div
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'rgba(0, 0, 0, 0.7)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1100,
-                padding: '1rem',
-                overflowY: 'auto'
-            }}
+            className="modal-overlay"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div
-                className="card"
+                className="modal-content"
                 style={{
-                    width: '100%',
                     maxWidth: '540px',
-                    margin: 'auto',
-                    padding: '2rem',
+                    padding: '1.25rem 1.5rem',
                     position: 'relative',
-                    boxShadow: 'var(--shadow-lg)',
-                    maxHeight: '90vh',
                     overflowY: 'auto',
                 }}
             >
+                <div className="bottom-sheet-handle" />
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', marginTop: '0.25rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '700' }}>
                         {isEditing ? 'Edit Group' : 'Start a New Group'}
                     </h2>
                     <button
                         onClick={onClose}
+                        className="btn-icon"
+                        title="Close"
                         style={{
                             color: 'hsl(var(--color-text-muted))',
-                            padding: '0.25rem',
                             borderRadius: '50%',
                         }}
                     >

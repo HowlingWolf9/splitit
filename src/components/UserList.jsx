@@ -31,17 +31,23 @@ export default function UserList() {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
                 {sortedUsers.map(u => (
-                    <div key={u.id} style={{
-                        padding: '0.5rem 1rem',
-                        background: 'hsl(var(--color-bg))',
-                        borderRadius: '2rem',
-                        fontSize: '0.9rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
+                    <div
+                        key={u.id}
+                        className="card-interactive"
+                        style={{
+                            padding: '0.45rem 0.85rem',
+                            background: 'hsl(var(--color-bg))',
+                            border: '1px solid hsl(var(--color-border))',
+                            borderRadius: '2rem',
+                            fontSize: '0.9rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            minHeight: '44px'
+                        }}
+                    >
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'hsl(var(--color-accent))' }}></div>
-                        {u.name}
+                        <span style={{ fontWeight: 600 }}>{u.name}</span>
                         <button
                             onClick={() => handleDelete(u.id, u.name)}
                             style={{
@@ -49,13 +55,17 @@ export default function UserList() {
                                 border: 'none',
                                 color: 'hsl(var(--color-danger))',
                                 cursor: 'pointer',
-                                padding: '0.2rem',
+                                padding: '0.4rem',
+                                minWidth: '36px',
+                                minHeight: '36px',
                                 display: 'flex',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '50%'
                             }}
                             title="Remove user"
                         >
-                            <X size={14} />
+                            <X size={16} />
                         </button>
                     </div>
                 ))}
@@ -67,8 +77,11 @@ export default function UserList() {
                     placeholder="New member..."
                     value={name}
                     onChange={e => setName(e.target.value)}
+                    style={{ minHeight: '48px' }}
                 />
-                <button className="btn btn-primary" type="submit"><UserPlus size={16} /></button>
+                <button className="btn btn-primary" type="submit" style={{ minWidth: '48px', minHeight: '48px' }} title="Add member">
+                    <UserPlus size={18} />
+                </button>
             </form>
         </div>
     );

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { ArrowRight, Plus, Edit2, Search, HandCoins } from 'lucide-react';
 import SettlementForm from './SettlementForm';
+import { useModalBackHandler } from '../utils/backButton';
 
 export default function SettlementsListView({ onViewSettlement }) {
     const { state, selectedGroupId, setSelectedGroupId, selectedGroup } = useExpenses();
@@ -9,6 +10,11 @@ export default function SettlementsListView({ onViewSettlement }) {
     const [showForm, setShowForm] = useState(false);
     const [editingSettlement, setEditingSettlement] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+
+    useModalBackHandler(showForm, () => {
+        setShowForm(false);
+        setEditingSettlement(null);
+    });
 
     const groupFilter = selectedGroupId === 'non-group' ? 'NON_GROUP' : (selectedGroupId || 'ALL');
 
@@ -287,6 +293,7 @@ export default function SettlementsListView({ onViewSettlement }) {
                     }}
                 >
                     <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
                         <SettlementForm
                             editingSettlement={editingSettlement}
                             onCancel={handleFormClose}
