@@ -24,7 +24,7 @@
    - Always run `npm run android:sync` after bumping the version to ensure `dist/`, `android/app/src/main/assets/public`, and Capacitor configs are synchronized with the new version number.
    - Always stage and commit all verified changes and the version bump at the conclusion of every coding task. Never leave verified changes unstaged or uncommitted in the working tree.
    - Use conventional commit standards (e.g., `feat(...)`, `fix(...)`, `chore(release): bump version to vX.Y.Z`) with clear, descriptive messages summarizing what was accomplished.
-   - Keep commits and tags local so the user has full control over when to push or release (`git push origin <branch> --follow-tags`).
+   - Automatically push verified commits and tags (`git push origin <branch> --follow-tags`) upon task completion so that CI compilation, GitHub Releases, and Obtainium update distribution trigger seamlessly without requiring manual user intervention.
 
 
 
