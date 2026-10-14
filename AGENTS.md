@@ -16,11 +16,16 @@
      git push origin <branch> --follow-tags
      ```
 
-4. **Mandatory Git Commits Upon Task Completion**:
-   - Always stage and commit all verified changes at the conclusion of every coding task or feature implementation before ending your turn. Never leave verified changes unstaged or uncommitted in the working tree.
-   - Use conventional commit standards (e.g., `feat(...)`, `fix(...)`, `refactor(...)`, `docs(...)`) with clear, descriptive messages summarizing what was accomplished.
-   - Always verify build and lint checks (`npm run lint`, `npm run android:sync`) before creating the commit.
-   - Keep commits local so the user has full control over when to push or tag.
+4. **Mandatory Version Bumping & Commits Upon Task Completion**:
+   - Always bump the application version upon the completion of any feature, bug fix, or task before concluding your turn:
+     - Use `patch` for bug fixes, performance optimizations, and incremental adjustments (e.g., `v1.2.1` &rarr; `v1.2.2`).
+     - Use `minor` for new features, new platform support (e.g., Windows PC desktop app), or major workflow enhancements (e.g., `v1.2.1` &rarr; `v1.3.0`).
+     - Use `major` for breaking architectural or data schema shifts.
+   - Always run `npm run android:sync` after bumping the version to ensure `dist/`, `android/app/src/main/assets/public`, and Capacitor configs are synchronized with the new version number.
+   - Always stage and commit all verified changes and the version bump at the conclusion of every coding task. Never leave verified changes unstaged or uncommitted in the working tree.
+   - Use conventional commit standards (e.g., `feat(...)`, `fix(...)`, `chore(release): bump version to vX.Y.Z`) with clear, descriptive messages summarizing what was accomplished.
+   - Keep commits and tags local so the user has full control over when to push or release (`git push origin <branch> --follow-tags`).
+
 
 
 ## Android Native UI Standards (Capacitor)
