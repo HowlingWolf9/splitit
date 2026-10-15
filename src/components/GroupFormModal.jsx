@@ -433,9 +433,6 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                     }}>
                         <div>
                             <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>Simplify Group Debts</div>
-                            <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))' }}>
-                                Automatically consolidate group debts into the minimum number of payments
-                            </div>
                         </div>
                         <input
                             type="checkbox"
@@ -456,9 +453,6 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                             <div style={{ fontWeight: '600', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                                 <HandCoins size={16} style={{ color: 'hsl(var(--color-accent))' }} />
                                 <span>Default Primary Collector (Optional)</span>
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.15rem' }}>
-                                Designate a default organizer/treasurer. New expenses in this group will default to this collector.
                             </div>
                         </div>
                         <select
@@ -500,9 +494,6 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                                 <div style={{ fontWeight: '600', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                                     <Radio size={16} style={{ color: 'hsl(var(--color-success))' }} />
                                     <span>Enable Multi-User Live Sync</span>
-                                </div>
-                                <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.15rem' }}>
-                                    Generates an invite code so multiple friends can add expenses and sync in real-time ($0 server cost).
                                 </div>
                             </div>
                             <input

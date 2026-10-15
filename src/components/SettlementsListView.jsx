@@ -199,11 +199,8 @@ export default function SettlementsListView({ onViewSettlement }) {
                     }}>
                         <HandCoins size={24} />
                     </div>
-                    <p style={{ color: 'hsl(var(--color-text-main))', fontWeight: 600, fontSize: '1rem', margin: 0 }}>
+                    <p style={{ color: 'hsl(var(--color-text-main))', fontWeight: 600, fontSize: '1rem', margin: '0 0 1rem' }}>
                         {searchQuery ? 'No matching settlements found' : 'No settlements recorded yet'}
-                    </p>
-                    <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.85rem', margin: '0.35rem 0 1.25rem' }}>
-                        {searchQuery ? 'Try adjusting your search query' : 'Record payments between group members to settle debts'}
                     </p>
                     <button
                         className="btn btn-primary btn-sm"

@@ -201,11 +201,8 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                     }}>
                         <Receipt size={24} />
                     </div>
-                    <p style={{ color: 'hsl(var(--color-text-main))', fontWeight: 600, fontSize: '1rem', margin: 0 }}>
+                    <p style={{ color: 'hsl(var(--color-text-main))', fontWeight: 600, fontSize: '1rem', margin: '0 0 1rem' }}>
                         {searchQuery ? 'No matching expenses found' : 'No expenses recorded yet'}
-                    </p>
-                    <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.85rem', margin: '0.35rem 0 1.25rem' }}>
-                        {searchQuery ? 'Try adjusting your search terms or group filter' : 'Track group dining, bills, trips, and shared purchases'}
                     </p>
                     <button
                         className="btn btn-primary btn-sm"

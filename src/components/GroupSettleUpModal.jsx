@@ -94,9 +94,6 @@ export default function GroupSettleUpModal({ group, onClose, onSuccess }) {
                         <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '700' }}>
                             Settle Up in {group.name}
                         </h2>
-                        <div style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
-                            Record a payment to balance group debts
-                        </div>
                     </div>
                     <button
                         onClick={onClose}

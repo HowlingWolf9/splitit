@@ -157,10 +157,6 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                             <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>
                                 Join Shared Group
                             </h3>
-                            <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <ShieldCheck size={13} style={{ color: 'hsl(var(--color-success))' }} />
-                                <span>Zero-Server • End-to-End Encrypted</span>
-                            </div>
                         </div>
                     </div>
                     <button
@@ -231,18 +227,6 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                             </div>
                         </div>
 
-                        <div style={{
-                            padding: '0.85rem 1rem',
-                            borderRadius: 'var(--radius-md)',
-                            background: 'hsl(var(--color-surface-dim))',
-                            border: '1px solid hsl(var(--color-border))',
-                            fontSize: '0.82rem',
-                            color: 'hsl(var(--color-text-muted))',
-                            lineHeight: 1.45
-                        }}>
-                            Ask a group member to tap <strong>"Live Sync & Invite"</strong> inside their group details to share their invite code. SplitIt connects directly over public relays—no account needed.
-                        </div>
-
                         <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
                             <button
                                 type="button"
@@ -279,12 +263,9 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                         }}>
                             <RefreshCw size={26} className="spin-animation" />
                         </div>
-                        <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '1.05rem', fontWeight: 700 }}>
-                            Connecting to Decentralized Relays...
+                        <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
+                            Connecting to Relays...
                         </h4>
-                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))' }}>
-                            Retrieving encrypted group payload and validating cryptographic signature.
-                        </p>
                     </div>
                 )}
 
@@ -325,12 +306,9 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                             border: '1px solid hsl(var(--color-border))',
                             borderRadius: 'var(--radius-lg)'
                         }}>
-                            <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.98rem', fontWeight: 700 }}>
+                            <h4 style={{ margin: '0 0 0.85rem 0', fontSize: '0.98rem', fontWeight: 700 }}>
                                 Which member are you in this group?
                             </h4>
-                            <p style={{ margin: '0 0 0.85rem 0', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                                SplitIt personalizes your balances and "You owe / You are owed" calculations based on your selected identity.
-                            </p>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '180px', overflowY: 'auto' }}>
                                 {(fetchedData.members || []).map(member => {

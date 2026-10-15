@@ -707,6 +707,17 @@ export function ExpenseProvider({ children }) {
 
     // Token reception listeners (Popup postMessage, Hash redirect, and Electron IPC)
     useEffect(() => {
+        // 0. Auto-restore session silently if previously connected
+        if (!gdrive.isAuthenticated() && gdrive.isSessionPersisted()) {
+            gdrive.trySilentRestore().then(restored => {
+                if (restored) {
+                    setSyncStatus('connected');
+                    setSyncError(null);
+                    syncNow();
+                }
+            });
+        }
+
         // 1. Check current URL hash (for OAuth redirect flow)
         if (typeof window !== 'undefined' && window.location.hash) {
             const tokenData = gdrive.parseTokenFromHash(window.location.hash);
@@ -725,6 +736,7 @@ export function ExpenseProvider({ children }) {
                 }
                 // In main window redirect
                 gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
                 window.history.replaceState(null, '', window.location.pathname + window.location.search);
                 setSyncStatus('connected');
                 setSyncError(null);
@@ -738,6 +750,7 @@ export function ExpenseProvider({ children }) {
                 const tokenData = gdrive.parseTokenFromHash(event.data.hash);
                 if (tokenData?.accessToken) {
                     gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                    gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
                     setSyncStatus('connected');
                     setSyncError(null);
                     setTimeout(() => syncNow(), 200);
@@ -753,6 +766,7 @@ export function ExpenseProvider({ children }) {
                 const tokenData = gdrive.parseTokenFromHash(hashPart);
                 if (tokenData?.accessToken) {
                     gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                    gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
                     setSyncStatus('connected');
                     setSyncError(null);
                     setTimeout(() => syncNow(), 200);

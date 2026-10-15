@@ -63,11 +63,8 @@ export default function GroupScopeBanner() {
                         <Layers size={16} />
                     </div>
                     <div>
-                        <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', marginRight: '0.4rem' }}>
-                            Scope:
-                        </span>
                         <strong style={{ fontSize: '0.88rem', color: 'hsl(var(--color-text-main))' }}>
-                            All Groups (Overall View)
+                            All Groups
                         </strong>
                     </div>
                 </div>
@@ -128,25 +125,11 @@ export default function GroupScopeBanner() {
                         />
                     </div>
                     <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <span style={{
-                                fontSize: '0.7rem',
-                                fontWeight: '700',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                color: selectedGroup.color || 'hsl(var(--color-accent))',
-                                background: `${selectedGroup.color || 'hsl(var(--color-accent))'}20`,
-                                padding: '0.12rem 0.5rem',
-                                borderRadius: 'var(--radius-full)'
-                            }}>
-                                Active Scope
-                            </span>
-                            {!isNonGroup && (
-                                <span style={{ fontSize: '0.76rem', color: 'hsl(var(--color-text-muted))' }}>
-                                    • {selectedGroup.members?.length || 0} members
-                                </span>
-                            )}
-                        </div>
+                        {!isNonGroup && (
+                            <div style={{ fontSize: '0.76rem', color: 'hsl(var(--color-text-muted))' }}>
+                                {selectedGroup.members?.length || 0} members
+                            </div>
+                        )}
 
                         <div style={{
                             fontSize: '1.15rem',

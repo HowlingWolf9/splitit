@@ -8,7 +8,6 @@ import {
     Users,
     Printer,
     HandCoins,
-    Info,
     ChevronDown,
     ChevronUp,
     Receipt,
@@ -564,9 +563,6 @@ export default function BalancesView() {
                         <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
                             Balances & Settlements {selectedGroup ? `— ${selectedGroup.name}` : ''}
                         </h2>
-                        <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                            Calculated repayment plan to clear all pending debts
-                        </span>
                     </div>
 
                     {/* Segmented Mode Selector & Action Controls */}
@@ -1041,25 +1037,6 @@ export default function BalancesView() {
                             </div>
                         );
                     })}
-
-                    <div style={{
-                        padding: '0.85rem 1rem',
-                        background: 'hsl(var(--color-surface-dim))',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.82rem',
-                        color: 'hsl(var(--color-text-muted))',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        <Info size={16} style={{ color: 'hsl(var(--color-accent))', flexShrink: 0 }} />
-                        <span>
-                            {settleMode === 'simplified'
-                                ? `Debts simplified mathematically: only ${settlements.length} transaction${settlements.length === 1 ? '' : 's'} needed to completely settle all members.`
-                                : 'Direct balances show the exact debt between each member based on shared expenses.'
-                            }
-                        </span>
-                    </div>
                 </div>
             )}
 

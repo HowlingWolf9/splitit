@@ -174,9 +174,6 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                     <p style={{ color: 'hsl(var(--color-text-main))', fontWeight: 600, fontSize: '1rem', margin: 0 }}>
                         {searchQuery ? 'No matching activity found' : 'No recorded activity yet'}
                     </p>
-                    <p style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.85rem', margin: '0.35rem 0 0' }}>
-                        Transactions and settlements will appear in this ledger
-                    </p>
                 </div>
             ) : (
                 <TransactionList

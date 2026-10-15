@@ -792,10 +792,6 @@ export default function GroupDetailView() {
                                     <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>
                                         Multi-User Live Sync
                                     </h3>
-                                    <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        <ShieldCheck size={13} style={{ color: 'hsl(var(--color-success))' }} />
-                                        <span>Zero-Server • End-to-End Encrypted (AES-256)</span>
-                                    </div>
                                 </div>
                             </div>
                             <button
@@ -810,21 +806,6 @@ export default function GroupDetailView() {
 
                         {!group.isShared ? (
                             <div style={{ padding: '0.5rem 0' }}>
-                                <div className="card" style={{
-                                    padding: '1.25rem',
-                                    background: 'hsl(var(--color-surface-dim))',
-                                    border: '1px solid hsl(var(--color-border))',
-                                    marginBottom: '1.5rem',
-                                    borderRadius: 'var(--radius-lg)'
-                                }}>
-                                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.98rem', fontWeight: 700 }}>
-                                        Collaborate with Friends with $0 Server Cost
-                                    </h4>
-                                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))', lineHeight: 1.5 }}>
-                                        Enable live sync to generate a private <strong>Group Invite Code</strong>. Any friend who joins this group can add, edit, or settle expenses from their own device. Updates synchronize instantly when online or catch up automatically via decentralized Nostr relays.
-                                    </p>
-                                </div>
-
                                 <button
                                     type="button"
                                     className="btn btn-primary"
@@ -926,12 +907,9 @@ export default function GroupDetailView() {
                                     borderRadius: 'var(--radius-lg)'
                                 }}>
                                     <div style={{ marginBottom: '0.75rem' }}>
-                                        <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.95rem', fontWeight: 700 }}>
+                                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
                                             Which member are you in this group?
                                         </h4>
-                                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'hsl(var(--color-text-muted))' }}>
-                                            Select your personal identity so your device calculates "You owe" and "You are owed" accurately.
-                                        </p>
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '200px', overflowY: 'auto' }}>

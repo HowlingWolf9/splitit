@@ -1,6 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { useModalBackHandler } from '../utils/backButton';
 import * as gdrive from '../services/googleDriveSync';
 import { exportBackupJson, readJsonFile, openElectronBackupFile, isElectron } from '../utils/fileHelper';
 import {
@@ -16,16 +15,10 @@ import {
     Cloud,
     RefreshCw,
     LogOut,
-    ChevronDown,
-    ChevronUp,
-    Key,
-    HelpCircle,
-    X,
-    WifiOff,
-    ShieldCheck,
     Radio,
     Trash2,
-    Plus
+    Plus,
+    WifiOff
 } from 'lucide-react';
 
 export default function Settings() {
@@ -40,12 +33,9 @@ export default function Settings() {
         lastSyncedAt,
         isAutoSyncEnabled,
         setIsAutoSyncEnabled,
-        customClientId,
-        setCustomClientId,
         syncNow,
         connectDrive,
         disconnectDrive,
-        saveManualToken,
         getConfiguredRelays,
         saveConfiguredRelays,
         defaultNostrRelays
@@ -57,41 +47,6 @@ export default function Settings() {
     // Nostr Relay configuration state
     const [nostrRelays, setNostrRelays] = useState(() => getConfiguredRelays?.() || []);
     const [newRelayInput, setNewRelayInput] = useState('');
-
-    // Advanced section accordion
-    const [advancedOpen, setAdvancedOpen] = useState(false);
-
-    // Guide Modal
-    const [isGuideOpen, setIsGuideOpen] = useState(false);
-    useModalBackHandler(isGuideOpen, () => setIsGuideOpen(false));
-
-    // Custom Client ID input state
-    const [clientIdInput, setClientIdInput] = useState(customClientId || '');
-    const [clientIdSaved, setClientIdSaved] = useState(false);
-
-    const handleConnectDrive = () => {
-        if (!gdrive.hasConfiguredClientId()) {
-            setAdvancedOpen(true);
-            showMessage('error', 'Google OAuth Client ID is not configured. Please enter your Web Application Client ID below or open the Setup Guide.');
-            return;
-        }
-        connectDrive();
-    };
-
-
-    // Manual token input state
-    const [manualTokenInput, setManualTokenInput] = useState('');
-    const [manualTokenHours, setManualTokenHours] = useState('1');
-    const [manualTokenTesting, setManualTokenTesting] = useState(false);
-    const [tokenInfo, setTokenInfo] = useState(() => gdrive.getTokenInfo());
-
-    // Update token info periodically on timer
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setTokenInfo(gdrive.getTokenInfo());
-        }, 15000);
-        return () => clearInterval(timer);
-    }, [syncStatus]);
 
     const showMessage = (type, text) => {
         setMessage({ type, text });
@@ -161,45 +116,6 @@ export default function Settings() {
         event.target.value = '';
     };
 
-    const handleSaveClientId = (e) => {
-        e.preventDefault();
-        const cleaned = gdrive.sanitizeClientId(clientIdInput);
-        if (cleaned && !gdrive.isValidClientId(cleaned)) {
-            showMessage('error', 'Invalid Client ID. It must end with .apps.googleusercontent.com (Web Application)');
-            return;
-        }
-        setCustomClientId(cleaned);
-        setClientIdInput(cleaned);
-        setClientIdSaved(true);
-        setTimeout(() => setClientIdSaved(false), 3000);
-        showMessage('success', cleaned ? 'OAuth Client ID saved successfully!' : 'Cleared custom Client ID');
-    };
-
-    const handleResetClientId = () => {
-        setClientIdInput('');
-        setCustomClientId('');
-        showMessage('success', 'Reset custom Client ID');
-    };
-
-    const handleSaveManualToken = async (e) => {
-        e.preventDefault();
-        if (!manualTokenInput.trim()) {
-            showMessage('error', 'Please enter a valid access token');
-            return;
-        }
-        setManualTokenTesting(true);
-        const hours = parseFloat(manualTokenHours) || 1;
-        const res = await saveManualToken(manualTokenInput.trim(), hours);
-        setManualTokenTesting(false);
-
-        if (res.success) {
-            setManualTokenInput('');
-            showMessage('success', 'Access token saved and verified with Google Drive!');
-        } else {
-            showMessage('error', `Token test failed: ${res.error}`);
-        }
-    };
-
     const handleAddRelay = (e) => {
         e.preventDefault();
         const url = newRelayInput.trim();
@@ -258,12 +174,11 @@ export default function Settings() {
         }
     };
 
-    // Status badge configuration
     const getStatusBadge = () => {
         switch (syncStatus) {
             case 'syncing':
                 return {
-                    label: 'Syncing with Drive...',
+                    label: 'Syncing...',
                     icon: <RefreshCw size={13} className="spin-animation" />,
                     bg: 'hsl(var(--color-accent) / 0.12)',
                     color: 'hsl(var(--color-accent))',
@@ -271,7 +186,7 @@ export default function Settings() {
                 };
             case 'connected':
                 return {
-                    label: 'Connected to Google Drive',
+                    label: 'Connected',
                     icon: <Check size={13} />,
                     bg: 'hsl(var(--color-success-soft))',
                     color: 'hsl(var(--color-success))',
@@ -279,7 +194,7 @@ export default function Settings() {
                 };
             case 'offline':
                 return {
-                    label: 'Offline — Sync Paused',
+                    label: 'Offline',
                     icon: <WifiOff size={13} />,
                     bg: 'hsl(var(--color-warning-soft))',
                     color: 'hsl(var(--color-warning))',
@@ -306,6 +221,9 @@ export default function Settings() {
     };
 
     const statusBadge = getStatusBadge();
+    const isConnected = syncStatus === 'connected' || (syncStatus === 'syncing' && gdrive.isAuthenticated());
+    const userProfile = gdrive.getUserProfile();
+    const userDisplay = userProfile?.email || userProfile?.name || 'Connected to Google Drive';
 
     return (
         <div style={{ maxWidth: '680px', margin: '0 auto', display: 'grid', gap: '1.25rem' }}>
@@ -333,9 +251,6 @@ export default function Settings() {
                     </div>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Preferences & Data</h2>
-                        <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                            Configure global currency, cloud sync, and database backups
-                        </span>
                     </div>
                 </div>
 
@@ -366,8 +281,8 @@ export default function Settings() {
                 {/* ============================================================== */}
                 {/* SECTION 1: GOOGLE DRIVE CLOUD SYNC */}
                 {/* ============================================================== */}
-                <div style={{ marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.45rem' }}>
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <div style={{
                                 width: '26px',
@@ -402,15 +317,11 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', lineHeight: 1.45 }}>
-                        100% client-side, zero-server cross-device sync. Data is encrypted and stored in your private, hidden Google Drive application folder (<code>splitit_appdata_v1.json</code>).
-                    </p>
-
                     {/* Sync Error Display */}
                     {syncError && (
                         <div style={{
                             padding: '0.65rem 0.85rem',
-                            marginBottom: '1rem',
+                            marginBottom: '0.85rem',
                             borderRadius: 'var(--radius-md)',
                             backgroundColor: 'hsl(var(--color-danger-soft))',
                             color: 'hsl(var(--color-danger-text))',
@@ -421,357 +332,167 @@ export default function Settings() {
                             gap: '0.5rem'
                         }}>
                             <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                            <div>
-                                <strong style={{ display: 'block', marginBottom: '2px' }}>Sync Notice</strong>
-                                <span>{syncError}</span>
-                            </div>
+                            <span>{syncError}</span>
                         </div>
                     )}
 
-                    {/* Unconfigured Client ID Banner */}
-                    {!gdrive.hasConfiguredClientId() && (
+                    {/* When Signed Out */}
+                    {!isConnected ? (
                         <div style={{
-                            padding: '0.75rem 0.95rem',
-                            marginBottom: '1rem',
+                            background: 'hsl(var(--color-surface-dim))',
+                            border: '1px solid hsl(var(--color-border))',
                             borderRadius: 'var(--radius-md)',
-                            backgroundColor: 'hsl(var(--color-accent) / 0.1)',
-                            color: 'hsl(var(--color-text-main))',
-                            border: '1px solid hsl(var(--color-accent) / 0.3)',
-                            fontSize: '0.84rem',
+                            padding: '1.25rem',
                             display: 'flex',
+                            flexDirection: 'column',
                             alignItems: 'center',
-                            justifyContent: 'space-between',
-                            flexWrap: 'wrap',
-                            gap: '0.65rem'
+                            textAlign: 'center',
+                            gap: '0.85rem'
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <Key size={16} style={{ color: 'hsl(var(--color-accent))', flexShrink: 0 }} />
-                                <span>
-                                    <strong>OAuth Client ID required:</strong> Enter a Google Cloud Web Client ID to link Google Drive.
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => {
-                                        setAdvancedOpen(true);
-                                        setIsGuideOpen(true);
-                                    }}
-                                    style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
-                                >
-                                    <HelpCircle size={13} />
-                                    <span>Setup Guide</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm"
-                                    onClick={() => setAdvancedOpen(true)}
-                                    style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
-                                >
-                                    <Key size={13} />
-                                    <span>Enter Client ID</span>
-                                </button>
-                            </div>
+                            <span style={{ fontSize: '0.88rem', color: 'hsl(var(--color-text-muted))' }}>
+                                Sign in to back up data and sync shared groups.
+                            </span>
+                            <button
+                                type="button"
+                                className="btn"
+                                onClick={connectDrive}
+                                style={{
+                                    background: '#ffffff',
+                                    color: '#3c4043',
+                                    border: '1px solid #dadce0',
+                                    fontWeight: 600,
+                                    fontSize: '0.92rem',
+                                    padding: '0.6rem 1.25rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.65rem',
+                                    boxShadow: '0 1px 3px rgba(60,64,67,0.12)',
+                                    cursor: 'pointer',
+                                    transition: 'all var(--transition-fast)'
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                                </svg>
+                                <span>Sign in with Google</span>
+                            </button>
                         </div>
-                    )}
-
-                    {/* Sync Status Info Card */}
-                    <div style={{
-                        background: 'hsl(var(--color-surface-dim))',
-                        border: '1px solid hsl(var(--color-border))',
-                        borderRadius: 'var(--radius-md)',
-                        padding: '1rem',
-                        marginBottom: '1rem'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                            <div>
-                                <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
-                                    Sync Metadata
-                                </div>
-                                <div style={{ fontSize: '0.92rem', fontWeight: 700, marginTop: '0.2rem', color: 'hsl(var(--color-text-main))' }}>
-                                    Last synced: {formatLastSynced(lastSyncedAt)}
-                                </div>
-                                {tokenInfo.hasToken && !tokenInfo.isExpired && (
-                                    <div style={{ fontSize: '0.76rem', color: 'hsl(var(--color-success))', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        <ShieldCheck size={13} />
-                                        <span>OAuth token active ({tokenInfo.minutesRemaining}m remaining)</span>
+                    ) : (
+                        /* When Signed In */
+                        <div style={{
+                            background: 'hsl(var(--color-surface-dim))',
+                            border: '1px solid hsl(var(--color-border))',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '1rem'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'hsl(var(--color-text-main))' }}>
+                                        {userDisplay}
                                     </div>
-                                )}
-                            </div>
+                                    <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
+                                        Last synced: {formatLastSynced(lastSyncedAt)}
+                                    </div>
+                                </div>
 
-                            {/* Main Sync Actions */}
-                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                {syncStatus === 'disconnected' ? (
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                     <button
                                         type="button"
-                                        className="btn btn-primary btn-sm"
-                                        onClick={handleConnectDrive}
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={syncNow}
+                                        disabled={syncStatus === 'syncing' || syncStatus === 'offline'}
                                         style={{ minHeight: '38px' }}
                                     >
-                                        <Cloud size={15} />
-                                        <span>Connect Google Drive</span>
+                                        <RefreshCw size={14} className={syncStatus === 'syncing' ? 'spin-animation' : ''} />
+                                        <span>{syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}</span>
                                     </button>
-                                ) : (
-                                    <>
-                                        <button
-                                            type="button"
-                                            className="btn btn-secondary btn-sm"
-                                            onClick={syncNow}
-                                            disabled={syncStatus === 'syncing' || syncStatus === 'offline'}
-                                            style={{ minHeight: '38px' }}
-                                            title="Perform full pull, merge, and upload"
-                                        >
-                                            <RefreshCw size={14} className={syncStatus === 'syncing' ? 'spin-animation' : ''} />
-                                            <span>{syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}</span>
-                                        </button>
 
-                                        <button
-                                            type="button"
-                                            className="btn btn-ghost btn-sm"
-                                            onClick={disconnectDrive}
-                                            style={{ minHeight: '38px', color: 'hsl(var(--color-danger-text))' }}
-                                            title="Disconnect Google Drive"
-                                        >
-                                            <LogOut size={14} />
-                                            <span>Disconnect</span>
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Auto-Sync Toggle Row */}
-                        <div style={{
-                            marginTop: '0.9rem',
-                            paddingTop: '0.85rem',
-                            borderTop: '1px solid hsl(var(--color-border-subtle))',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '0.75rem'
-                        }}>
-                            <div>
-                                <label
-                                    htmlFor="auto-sync-toggle"
-                                    style={{ fontSize: '0.88rem', fontWeight: 700, cursor: 'pointer', display: 'block' }}
-                                >
-                                    Auto-sync on changes
-                                </label>
-                                <span style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', display: 'block', marginTop: '1px' }}>
-                                    Debounced 3s after mutations, plus automatic pull on app launch / focus
-                                </span>
+                                    <button
+                                        type="button"
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={disconnectDrive}
+                                        style={{ minHeight: '38px', color: 'hsl(var(--color-danger-text))' }}
+                                    >
+                                        <LogOut size={14} />
+                                        <span>Sign Out</span>
+                                    </button>
+                                </div>
                             </div>
 
-                            <label style={{
-                                position: 'relative',
-                                display: 'inline-block',
-                                width: '46px',
-                                height: '26px',
-                                flexShrink: 0,
-                                cursor: 'pointer'
-                            }}>
-                                <input
-                                    id="auto-sync-toggle"
-                                    type="checkbox"
-                                    checked={isAutoSyncEnabled}
-                                    onChange={(e) => setIsAutoSyncEnabled(e.target.checked)}
-                                    style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
-                                />
-                                <span style={{
-                                    position: 'absolute',
-                                    cursor: 'pointer',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    backgroundColor: isAutoSyncEnabled ? 'hsl(var(--color-accent))' : 'hsl(var(--color-border))',
-                                    borderRadius: '26px',
-                                    transition: 'all var(--transition-fast)'
-                                }}>
-                                    <span style={{
-                                        position: 'absolute',
-                                        content: '""',
-                                        height: '20px',
-                                        width: '20px',
-                                        left: isAutoSyncEnabled ? '23px' : '3px',
-                                        bottom: '3px',
-                                        backgroundColor: 'white',
-                                        borderRadius: '50%',
-                                        transition: 'all var(--transition-fast)',
-                                        boxShadow: 'var(--shadow-xs)'
-                                    }} />
-                                </span>
-                            </label>
-                        </div>
-                    </div>
-
-                    {/* Expandable "Self-Hosted OAuth & Advanced" Section */}
-                    <div style={{
-                        border: '1px solid hsl(var(--color-border))',
-                        borderRadius: 'var(--radius-md)',
-                        overflow: 'hidden'
-                    }}>
-                        <button
-                            type="button"
-                            onClick={() => setAdvancedOpen(!advancedOpen)}
-                            style={{
-                                width: '100%',
+                            {/* Auto-Sync Toggle Row */}
+                            <div style={{
+                                marginTop: '0.9rem',
+                                paddingTop: '0.85rem',
+                                borderTop: '1px solid hsl(var(--color-border-subtle))',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '0.75rem 1rem',
-                                background: 'hsl(var(--color-surface))',
-                                cursor: 'pointer',
-                                border: 'none',
-                                textAlign: 'left'
-                            }}
-                        >
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', fontWeight: 700 }}>
-                                <Key size={15} style={{ color: 'hsl(var(--color-accent))' }} />
-                                <span>Self-Hosted OAuth & Advanced Credentials</span>
-                            </span>
-                            {advancedOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-
-                        {advancedOpen && (
-                            <div style={{
-                                padding: '1rem',
-                                background: 'hsl(var(--color-surface-dim))',
-                                borderTop: '1px solid hsl(var(--color-border-subtle))',
-                                display: 'grid',
-                                gap: '1.25rem'
+                                gap: '0.75rem'
                             }}>
-                                {/* Custom Client ID */}
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <label style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-                                                Google Cloud OAuth Client ID
-                                            </label>
-                                            {customClientId ? (
-                                                <span style={{ fontSize: '0.72rem', color: 'hsl(var(--color-success))', fontWeight: 700, background: 'hsl(var(--color-success-soft))', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-full)' }}>
-                                                    Custom ID Active
-                                                </span>
-                                            ) : gdrive.getClientIdSource() === 'env' ? (
-                                                <span style={{ fontSize: '0.72rem', color: 'hsl(var(--color-accent))', fontWeight: 700, background: 'hsl(var(--color-accent) / 0.1)', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-full)' }}>
-                                                    Environment ID Active
-                                                </span>
-                                            ) : (
-                                                <span style={{ fontSize: '0.72rem', color: 'hsl(var(--color-danger-text))', fontWeight: 700, background: 'hsl(var(--color-danger-soft))', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-full)' }}>
-                                                    Not Configured
-                                                </span>
-                                            )}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsGuideOpen(true)}
-                                            style={{
-                                                fontSize: '0.76rem',
-                                                color: 'hsl(var(--color-accent))',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '0.25rem',
-                                                textDecoration: 'underline',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <HelpCircle size={13} />
-                                            <span>Setup Guide</span>
-                                        </button>
-                                    </div>
-                                    <p style={{ margin: '0 0 0.5rem', fontSize: '0.76rem', color: 'hsl(var(--color-text-muted))' }}>
-                                        Must be a <strong>Web application</strong> Client ID (ending in <code>.apps.googleusercontent.com</code>). Saved locally on this device in localStorage so Android APK and desktop users can connect without rebuilding.
-                                    </p>
+                                <label
+                                    htmlFor="auto-sync-toggle"
+                                    style={{ fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                    Auto-sync changes
+                                </label>
 
-                                    <form onSubmit={handleSaveClientId} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        <input
-                                            type="text"
-                                            className="input"
-                                            value={clientIdInput}
-                                            onChange={(e) => setClientIdInput(e.target.value)}
-                                            placeholder="e.g. 12345-xxx.apps.googleusercontent.com"
-                                            style={{ flex: 1, minWidth: '220px', fontSize: '0.84rem' }}
-                                        />
-                                        <button type="submit" className="btn btn-secondary btn-sm">
-                                            {clientIdSaved ? <Check size={14} /> : null}
-                                            <span>Save ID</span>
-                                        </button>
-                                        {customClientId && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-ghost btn-sm"
-                                                onClick={handleResetClientId}
-                                                style={{ fontSize: '0.78rem' }}
-                                            >
-                                                Clear
-                                            </button>
-                                        )}
-                                    </form>
-                                </div>
-
-                                {/* Manual Access Token Input */}
-                                <div style={{ paddingTop: '1rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
-                                    <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '0.25rem' }}>
-                                        Manual Access Token (Direct Entry)
-                                    </label>
-                                    <p style={{ margin: '0 0 0.5rem', fontSize: '0.76rem', color: 'hsl(var(--color-text-muted))' }}>
-                                        Paste a valid OAuth Bearer access token directly (useful for restricted PC networks, Android debug, or OAuth Playground tokens).
-                                    </p>
-
-                                    <form onSubmit={handleSaveManualToken} style={{ display: 'grid', gap: '0.5rem' }}>
-                                        <textarea
-                                            className="input"
-                                            rows={2}
-                                            value={manualTokenInput}
-                                            onChange={(e) => setManualTokenInput(e.target.value)}
-                                            placeholder="ya29.a0AfH6S..."
-                                            style={{ width: '100%', fontSize: '0.8rem', fontFamily: 'var(--font-family-mono)' }}
-                                        />
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                                <span style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))' }}>Duration:</span>
-                                                <select
-                                                    className="input"
-                                                    value={manualTokenHours}
-                                                    onChange={(e) => setManualTokenHours(e.target.value)}
-                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.78rem', minHeight: '32px' }}
-                                                >
-                                                    <option value="1">1 Hour</option>
-                                                    <option value="4">4 Hours</option>
-                                                    <option value="8">8 Hours</option>
-                                                    <option value="24">24 Hours</option>
-                                                </select>
-                                            </div>
-
-                                            <button
-                                                type="submit"
-                                                className="btn btn-primary btn-sm"
-                                                disabled={manualTokenTesting}
-                                                style={{ minHeight: '34px' }}
-                                            >
-                                                {manualTokenTesting ? <RefreshCw size={13} className="spin-animation" /> : <Check size={13} />}
-                                                <span>{manualTokenTesting ? 'Verifying...' : 'Save & Verify Token'}</span>
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
+                                <label style={{
+                                    position: 'relative',
+                                    display: 'inline-block',
+                                    width: '46px',
+                                    height: '26px',
+                                    flexShrink: 0,
+                                    cursor: 'pointer'
+                                }}>
+                                    <input
+                                        id="auto-sync-toggle"
+                                        type="checkbox"
+                                        checked={isAutoSyncEnabled}
+                                        onChange={(e) => setIsAutoSyncEnabled(e.target.checked)}
+                                        style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                                    />
+                                    <span style={{
+                                        position: 'absolute',
+                                        cursor: 'pointer',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: isAutoSyncEnabled ? 'hsl(var(--color-accent))' : 'hsl(var(--color-border))',
+                                        borderRadius: '26px',
+                                        transition: 'all var(--transition-fast)'
+                                    }}>
+                                        <span style={{
+                                            position: 'absolute',
+                                            content: '""',
+                                            height: '20px',
+                                            width: '20px',
+                                            left: isAutoSyncEnabled ? '23px' : '3px',
+                                            bottom: '3px',
+                                            backgroundColor: 'white',
+                                            borderRadius: '50%',
+                                            transition: 'all var(--transition-fast)',
+                                            boxShadow: 'var(--shadow-xs)'
+                                        }} />
+                                    </span>
+                                </label>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ============================================================== */}
                 {/* SECTION 2: ACTIVE CURRENCY */}
                 {/* ============================================================== */}
-                <div style={{ paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-subtle))', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div style={{ paddingTop: '1.25rem', borderTop: '1px solid hsl(var(--color-border-subtle))', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.65rem' }}>
                         <Coins size={16} style={{ color: 'hsl(var(--color-accent))' }} />
                         <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Active Currency</label>
                     </div>
-                    <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                        Choose the primary currency symbol used across all calculations and expense summaries.
-                    </p>
                     <select
                         className="input"
                         value={state.currency}
@@ -789,14 +510,11 @@ export default function Settings() {
                 {/* ============================================================== */}
                 {/* SECTION 3: DATA BACKUP & RESTORE */}
                 {/* ============================================================== */}
-                <div style={{ paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div style={{ paddingTop: '1.25rem', borderTop: '1px solid hsl(var(--color-border-subtle))', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                         <Database size={16} style={{ color: 'hsl(var(--color-accent))' }} />
                         <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Data Backup & Restore</label>
                     </div>
-                    <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                        Download a full snapshot of your groups, users, and transactions, or restore from a previous JSON backup file.
-                    </p>
 
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         <button
@@ -830,11 +548,11 @@ export default function Settings() {
                 {/* ============================================================== */}
                 {/* SECTION 4: MULTI-USER GROUP SYNC (PUBLIC NOSTR RELAYS) */}
                 {/* ============================================================== */}
-                <div style={{ paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ paddingTop: '1.25rem', borderTop: '1px solid hsl(var(--color-border-subtle))', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Radio size={16} style={{ color: 'hsl(var(--color-accent))' }} />
-                            <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Multi-User Group Sync (Public Nostr Relays)</label>
+                            <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Multi-User Relays</label>
                         </div>
                         <span style={{
                             fontSize: '0.72rem',
@@ -848,15 +566,12 @@ export default function Settings() {
                             Zero-Server • E2EE
                         </span>
                     </div>
-                    <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', lineHeight: 1.5 }}>
-                        Shared groups synchronize peer-to-peer using end-to-end encrypted events over free public Nostr relays with $0 server cost. Relays only ever see opaque AES-GCM ciphertext. You can customize which relays your device connects to below.
-                    </p>
 
                     {/* Relay List */}
                     <div style={{
                         display: 'grid',
                         gap: '0.45rem',
-                        marginBottom: '1rem',
+                        marginBottom: '0.75rem',
                         background: 'hsl(var(--color-surface-dim))',
                         padding: '0.75rem',
                         borderRadius: 'var(--radius-md)',
@@ -949,14 +664,11 @@ export default function Settings() {
                 {/* ============================================================== */}
                 {/* SECTION 5: ANDROID APP UPDATES & OBTAINIUM */}
                 {/* ============================================================== */}
-                <div style={{ paddingTop: '1.5rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div style={{ paddingTop: '1.25rem', borderTop: '1px solid hsl(var(--color-border-subtle))' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                         <Smartphone size={16} style={{ color: 'hsl(var(--color-accent))' }} />
-                        <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Android Updates & Obtainium</label>
+                        <label style={{ fontSize: '0.92rem', fontWeight: 700 }}>Android Updates</label>
                     </div>
-                    <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                        Install and receive automatic background updates for SplitIt directly from GitHub Releases using Obtainium.
-                    </p>
 
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         <a
@@ -983,91 +695,6 @@ export default function Settings() {
                     </div>
                 </div>
             </div>
-
-            {/* ============================================================== */}
-            {/* OAUTH SETUP GUIDE MODAL (REGISTERED WITH HARDWARE BACK BUTTON) */}
-            {/* ============================================================== */}
-            {isGuideOpen && (
-                <div
-                    className="modal-overlay"
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) setIsGuideOpen(false);
-                    }}
-                >
-                    <div className="modal-content" style={{ maxWidth: '540px', padding: '1.5rem' }}>
-                        <div className="bottom-sheet-handle" />
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: '1rem',
-                            paddingBottom: '0.65rem',
-                            borderBottom: '1px solid hsl(var(--color-border-subtle))'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <Key size={18} style={{ color: 'hsl(var(--color-accent))' }} />
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Create Your Google OAuth Client</h3>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsGuideOpen(false)}
-                                className="btn-icon"
-                                title="Close"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div style={{ fontSize: '0.86rem', lineHeight: 1.6, color: 'hsl(var(--color-text-main))', display: 'grid', gap: '0.85rem' }}>
-                            <p style={{ margin: 0 }}>
-                                You can generate your own 100% free Google Cloud OAuth 2.0 Client ID in 3 easy steps:
-                            </p>
-
-                            <ol style={{ paddingLeft: '1.25rem', margin: 0, display: 'grid', gap: '0.6rem' }}>
-                                <li>
-                                    <strong>Open Google Cloud Console:</strong> Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--color-accent))', textDecoration: 'underline' }}>console.cloud.google.com/apis/credentials</a> and select or create a project.
-                                </li>
-                                <li>
-                                    <strong>Enable Google Drive API:</strong> In the API Library, search for <em>Google Drive API</em> and click <strong>Enable</strong>.
-                                </li>
-                                <li>
-                                    <strong>Create Credentials:</strong>
-                                    <ul style={{ paddingLeft: '1rem', marginTop: '0.25rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                                        <li>Click <strong>Create Credentials &gt; OAuth client ID</strong></li>
-                                        <li>Application type: <strong>Web application</strong> (<em>Important:</em> Do NOT choose "Android" — Google requires Web application credentials for in-app browser token flows)</li>
-                                        <li>Authorized JavaScript origins: add <code>http://localhost</code> and <code>https://localhost</code> (plus your web URL if hosted)</li>
-                                        <li>Authorized redirect URIs: add <code>http://localhost</code>, <code>http://localhost/</code>, <code>https://localhost</code>, and <code>https://localhost/</code></li>
-                                    </ul>
-                                </li>
-                                <li>
-                                    <strong>Copy Client ID:</strong> Paste the generated Client ID (e.g. <code>123456-xxx.apps.googleusercontent.com</code>) into the field above and click <strong>Save ID</strong>!
-                                </li>
-                            </ol>
-
-                            <div style={{
-                                padding: '0.75rem',
-                                background: 'hsl(var(--color-accent) / 0.1)',
-                                borderRadius: 'var(--radius-sm)',
-                                border: '1px solid hsl(var(--color-accent) / 0.25)',
-                                fontSize: '0.78rem',
-                                color: 'hsl(var(--color-text-main))'
-                            }}>
-                                💡 <strong>Tip:</strong> SplitIt only accesses the private hidden <code>appDataFolder</code>. It cannot view, modify, or read any of your personal Google Drive files.
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => setIsGuideOpen(false)}
-                            >
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

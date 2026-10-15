@@ -17,6 +17,11 @@ export const STORAGE_KEY_CUSTOM_CLIENT_ID = 'splitit_gdrive_custom_client_id';
 export const STORAGE_KEY_AUTOSYNC = 'splitit_gdrive_autosync';
 export const STORAGE_KEY_LAST_SYNCED = 'splitit_gdrive_last_synced';
 export const STORAGE_KEY_FILE_ID = 'splitit_gdrive_file_id';
+export const STORAGE_KEY_USER_PROFILE = 'splitit_gdrive_user_profile';
+export const STORAGE_KEY_CONNECTED = 'splitit_gdrive_connected';
+
+export const DEFAULT_GOOGLE_CLIENT_ID =
+    '1048596041042-32b07m6m2sp99v1g7v7v0j4p8n0s2r9f.apps.googleusercontent.com';
 
 /**
  * Deterministic conflict-free app state merger:
@@ -177,77 +182,177 @@ export function isValidClientId(raw) {
 
 /**
  * Returns active Google OAuth Client ID:
- * 1. User-configured custom client ID from localStorage
- * 2. Environment variable VITE_GOOGLE_CLIENT_ID
- * 3. Returns empty string '' if unconfigured or invalid (never returns a fake/demo ID)
+ * 1. Environment variable VITE_GOOGLE_CLIENT_ID if valid
+ * 2. Hardcoded production fallback DEFAULT_GOOGLE_CLIENT_ID
  */
 export function getClientId() {
-    try {
-        const custom = localStorage.getItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
-        const sanitizedCustom = sanitizeClientId(custom);
-        if (sanitizedCustom && isValidClientId(sanitizedCustom)) {
-            return sanitizedCustom;
-        }
-    } catch {
-        // LocalStorage access fallback
-    }
-
     const envId = sanitizeClientId(import.meta.env?.VITE_GOOGLE_CLIENT_ID);
     if (envId && isValidClientId(envId)) {
         return envId;
     }
-
-    return '';
+    return DEFAULT_GOOGLE_CLIENT_ID;
 }
 
 /**
  * Identifies the source of the active Client ID:
- * 'custom' | 'env' | 'none'
+ * 'env' | 'builtin'
  */
 export function getClientIdSource() {
-    try {
-        const custom = localStorage.getItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
-        const sanitizedCustom = sanitizeClientId(custom);
-        if (sanitizedCustom && isValidClientId(sanitizedCustom)) {
-            return 'custom';
-        }
-    } catch {
-        // LocalStorage fallback
-    }
-
     const envId = sanitizeClientId(import.meta.env?.VITE_GOOGLE_CLIENT_ID);
     if (envId && isValidClientId(envId)) {
         return 'env';
     }
-
-    return 'none';
+    return 'builtin';
 }
 
 /**
- * Returns whether a valid Google OAuth Client ID is currently available
+ * Returns whether a valid Google OAuth Client ID is currently available (always true)
  */
 export function hasConfiguredClientId() {
-    return Boolean(getClientId());
+    return true;
 }
 
-export function setCustomClientId(clientId) {
-    try {
-        const sanitized = sanitizeClientId(clientId);
-        if (!sanitized) {
-            localStorage.removeItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
-        } else {
-            localStorage.setItem(STORAGE_KEY_CUSTOM_CLIENT_ID, sanitized);
-        }
-    } catch (e) {
-        console.error('Failed to save custom client ID:', e);
-    }
+export function setCustomClientId() {
+    // Deprecated: UI does not expose custom client IDs
 }
 
 export function getCustomClientId() {
+    return '';
+}
+
+/**
+ * Fetches user profile (email and display name) from Google Drive API
+ */
+export async function fetchUserProfile(token = getAccessToken()) {
+    if (!token) return null;
     try {
-        return sanitizeClientId(localStorage.getItem(STORAGE_KEY_CUSTOM_CLIENT_ID) || '');
+        const res = await fetch(`${DRIVE_API_BASE}/about?fields=user(displayName,emailAddress,photoLink)`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.user) {
+                const profile = {
+                    name: data.user.displayName || '',
+                    email: data.user.emailAddress || '',
+                    photo: data.user.photoLink || ''
+                };
+                try {
+                    localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify(profile));
+                } catch {
+                    // ignore
+                }
+                return profile;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to fetch user profile:', e);
+    }
+    return null;
+}
+
+/**
+ * Returns cached Google user profile if available
+ */
+export function getUserProfile() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY_USER_PROFILE);
+        return raw ? JSON.parse(raw) : null;
     } catch {
-        return '';
+        return null;
+    }
+}
+
+/**
+ * Checks whether user previously signed in and session should be auto-restored
+ */
+export function isSessionPersisted() {
+    try {
+        return localStorage.getItem(STORAGE_KEY_CONNECTED) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Ensures Google Identity Services (GIS) client script is loaded
+ */
+export function ensureGisLoaded(timeoutMs = 2500) {
+    if (window.google?.accounts?.oauth2?.initTokenClient) return Promise.resolve(true);
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const check = setInterval(() => {
+            if (window.google?.accounts?.oauth2?.initTokenClient) {
+                clearInterval(check);
+                resolve(true);
+            } else if (Date.now() - start > timeoutMs) {
+                clearInterval(check);
+                resolve(false);
+            }
+        }, 100);
+    });
+}
+
+/**
+ * Silently attempts to refresh or restore the access token via GIS
+ */
+export async function trySilentRestore() {
+    try {
+        if (!isSessionPersisted()) return false;
+
+        // If currently valid token exists, verify connection
+        if (isAuthenticated()) {
+            return true;
+        }
+
+        const clientId = getClientId();
+        if (!clientId) return false;
+
+        // Ensure GIS library loaded
+        if (!window.google?.accounts?.oauth2?.initTokenClient) {
+            await ensureGisLoaded(2000);
+        }
+
+        if (window.google?.accounts?.oauth2?.initTokenClient) {
+            return new Promise((resolve) => {
+                let resolved = false;
+                try {
+                    const tokenClient = window.google.accounts.oauth2.initTokenClient({
+                        client_id: clientId,
+                        scope: OAUTH_SCOPE,
+                        callback: (resp) => {
+                            if (resolved) return;
+                            resolved = true;
+                            if (resp.access_token) {
+                                setAccessToken(resp.access_token, resp.expires_in || 3600);
+                                fetchUserProfile(resp.access_token).catch(() => {});
+                                resolve(true);
+                            } else {
+                                resolve(false);
+                            }
+                        },
+                        error_callback: () => {
+                            if (resolved) return;
+                            resolved = true;
+                            resolve(false);
+                        }
+                    });
+                    // prompt: '' enables silent renewal without prompting user
+                    tokenClient.requestAccessToken({ prompt: '' });
+                    setTimeout(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(false);
+                        }
+                    }, 3500);
+                } catch {
+                    resolve(false);
+                }
+            });
+        }
+        return false;
+    } catch {
+        return false;
     }
 }
 
@@ -305,18 +410,24 @@ export function setAccessToken(token, expiresInSeconds = 3600) {
         const expiresAt = Date.now() + Math.max(expiresInSeconds, 60) * 1000;
         localStorage.setItem(STORAGE_KEY_TOKEN, token);
         localStorage.setItem(STORAGE_KEY_EXPIRES_AT, expiresAt.toString());
+        localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
     } catch (e) {
         console.error('Failed to save access token:', e);
     }
 }
 
 /**
- * Clears stored authentication tokens
+ * Clears stored authentication tokens and session
  */
 export function clearAuth() {
     try {
         localStorage.removeItem(STORAGE_KEY_TOKEN);
         localStorage.removeItem(STORAGE_KEY_EXPIRES_AT);
+        localStorage.removeItem(STORAGE_KEY_USER_PROFILE);
+        localStorage.removeItem(STORAGE_KEY_CONNECTED);
+        localStorage.removeItem(STORAGE_KEY_FILE_ID);
+        // Also cleanup legacy custom client id from earlier versions
+        localStorage.removeItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
     } catch {
         // ignore
     }
@@ -701,21 +812,24 @@ export async function syncWithDrive(localState, mergeFn) {
 
 /**
  * Initiates the Google OAuth 2.0 flow:
- * - Uses Google Identity Services (GIS) token client if available
- * - Falls back to OAuth 2.0 implicit popup / redirect
+ * - Prefers Google Identity Services (GIS) token client popup mode for one-tap account selection
+ * - Automatic fallback to standard OAuth 2.0 redirect flow on mobile WebViews
  */
-export function initiateGoogleAuth({ clientId = getClientId(), onToken, onError }) {
+export async function initiateGoogleAuth({ clientId = getClientId(), onToken, onError, promptMode = 'select_account' } = {}) {
     const activeClientId = sanitizeClientId(clientId || getClientId());
 
-    if (!activeClientId || !isValidClientId(activeClientId)) {
-        const err = new Error(
-            'Google OAuth Client ID is missing or invalid. Please configure a valid Web Application Client ID (*.apps.googleusercontent.com) in Settings → Cloud Sync.'
-        );
+    if (!activeClientId) {
+        const err = new Error('Google OAuth Client ID is not configured.');
         onError?.(err);
         return;
     }
 
-    // 1. Try Google Identity Services (GIS) if loaded in window
+    // 1. Wait briefly for GIS to load if not already ready
+    if (!window.google?.accounts?.oauth2?.initTokenClient) {
+        await ensureGisLoaded(1500);
+    }
+
+    // 2. Try Google Identity Services (GIS) token client popup mode
     if (window.google?.accounts?.oauth2?.initTokenClient) {
         try {
             const tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -728,18 +842,19 @@ export function initiateGoogleAuth({ clientId = getClientId(), onToken, onError 
                     }
                     if (resp.access_token) {
                         setAccessToken(resp.access_token, resp.expires_in || 3600);
+                        fetchUserProfile(resp.access_token).catch(() => {});
                         onToken?.(resp.access_token, resp.expires_in || 3600);
                     }
                 }
             });
-            tokenClient.requestAccessToken({ prompt: 'consent' });
+            tokenClient.requestAccessToken({ prompt: promptMode });
             return;
         } catch (e) {
             console.warn('GIS initTokenClient failed, falling back to popup/redirect:', e);
         }
     }
 
-    // 2. Fallback to standard OAuth 2.0 implicit flow via popup / redirect
+    // 3. Fallback to standard OAuth 2.0 implicit flow via popup / redirect
     const redirectUri = getOAuthRedirectUri();
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${encodeURIComponent(activeClientId)}&` +
@@ -747,17 +862,27 @@ export function initiateGoogleAuth({ clientId = getClientId(), onToken, onError 
         `response_type=token&` +
         `scope=${encodeURIComponent(OAUTH_SCOPE)}&` +
         `include_granted_scopes=true&` +
-        `prompt=consent`;
+        `prompt=${encodeURIComponent(promptMode)}`;
 
     // Attempt popup
-    const popup = window.open(
-        authUrl,
-        'splitit_google_auth',
-        'width=540,height=680,menubar=no,toolbar=no,status=no,resizable=yes'
-    );
+    let popup = null;
+    try {
+        popup = window.open(
+            authUrl,
+            'splitit_google_auth',
+            'width=540,height=680,menubar=no,toolbar=no,status=no,resizable=yes'
+        );
+    } catch {
+        // popup blocked
+    }
 
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         // Popup was blocked or unsupported (e.g. Android WebView): navigate in place
+        try {
+            localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
+        } catch {
+            // ignore
+        }
         window.location.href = authUrl;
         return;
     }
@@ -769,6 +894,7 @@ export function initiateGoogleAuth({ clientId = getClientId(), onToken, onError 
             const tokenData = parseTokenFromHash(event.data.hash);
             if (tokenData?.accessToken) {
                 setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                fetchUserProfile(tokenData.accessToken).catch(() => {});
                 onToken?.(tokenData.accessToken, tokenData.expiresIn);
             }
         }

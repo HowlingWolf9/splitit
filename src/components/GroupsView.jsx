@@ -225,14 +225,11 @@ export default function GroupsView() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--color-text-main))' }}>
-                                    All Groups (Overall View)
+                                    All Groups
                                 </div>
                                 {selectedGroupId === null && (
                                     <span className="badge badge-owed">ACTIVE</span>
                                 )}
-                            </div>
-                            <div style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
-                                View combined metrics, transactions, and balances across all groups
                             </div>
                         </div>
 
