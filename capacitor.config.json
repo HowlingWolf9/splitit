@@ -3,6 +3,11 @@
   "appName": "SplitIt",
   "webDir": "dist",
   "server": {
-    "androidScheme": "http"
+    "androidScheme": "http",
+    "allowNavigation": [
+      "accounts.google.com",
+      "*.google.com",
+      "*.googleapis.com"
+    ]
   }
 }

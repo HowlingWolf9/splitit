@@ -221,9 +221,12 @@ public class MainActivity extends BridgeActivity {
             if (webView != null) {
                 android.webkit.WebSettings settings = webView.getSettings();
                 String ua = settings.getUserAgentString();
-                if (ua != null && ua.contains("; wv")) {
-                    settings.setUserAgentString(ua.replace("; wv", ""));
-                    Log.d(TAG, "Sanitized WebView user-agent for Google OAuth compatibility");
+                if (ua != null) {
+                    String sanitized = ua.replaceAll(";\\s*wv", "").replaceAll("Version\\/\\d+\\.\\d+\\s*", "");
+                    if (!sanitized.equals(ua)) {
+                        settings.setUserAgentString(sanitized);
+                        Log.d(TAG, "Sanitized WebView user-agent for Google OAuth compatibility: " + sanitized);
+                    }
                 }
             }
         } catch (Exception e) {

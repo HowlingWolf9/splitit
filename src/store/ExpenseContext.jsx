@@ -600,6 +600,26 @@ export function ExpenseProvider({ children }) {
         const processTokenHash = (hashPart) => {
             if (!hashPart) return false;
             const tokenData = gdrive.parseTokenFromHash(hashPart);
+            if (tokenData?.error) {
+                setSyncError(tokenData.error);
+                setSyncStatus('error');
+                if (typeof window !== 'undefined') {
+                    let targetUrl = window.location.pathname + window.location.search;
+                    try {
+                        const savedRoute = sessionStorage.getItem('splitit_oauth_return_route');
+                        if (savedRoute) {
+                            sessionStorage.removeItem('splitit_oauth_return_route');
+                            targetUrl = savedRoute;
+                        }
+                    } catch {
+                        // ignore
+                    }
+                    window.history.replaceState(null, '', targetUrl);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                }
+                return false;
+            }
+
             if (tokenData?.accessToken) {
                 // 1. Immediately persist token & fetch profile in active environment
                 gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
@@ -635,6 +655,7 @@ export function ExpenseProvider({ children }) {
                         // ignore
                     }
                     window.history.replaceState(null, '', targetUrl);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
                 }
 
                 // 4. Update UI state and initiate sync

@@ -301,9 +301,11 @@ export function ensureGisLoaded(timeoutMs = 2500) {
 export function isMobileDevice() {
     if (typeof window === 'undefined') return false;
     const ua = navigator.userAgent || navigator.vendor || window.opera || '';
-    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(ua);
-    const hasTouchScreen = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0) && window.innerWidth <= 1024;
-    return isMobileUA || hasTouchScreen;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|FxiOS/i.test(ua);
+    // iPadOS 13+ reports 'Macintosh' user-agent but has multitouch capabilities
+    const isIPadOS = /Macintosh/i.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1;
+    const hasTouchScreen = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0) && (window.innerWidth <= 1024 || isIPadOS);
+    return isMobileUA || isIPadOS || hasTouchScreen;
 }
 
 /**
@@ -400,17 +402,11 @@ export function getOAuthRedirectUri() {
     if (origin.startsWith('http://localhost') || origin.startsWith('https://localhost')) {
         return origin;
     }
-    // Clean pathname: remove trailing index.html
-    let pathname = (window.location.pathname || '').replace(/\/index\.html$/, '');
-    // Strip known client-side React routes to keep redirect_uri pointing to app base
-    const appRoutes = ['/settings', '/dashboard', '/groups', '/expenses', '/settlements', '/history', '/transactions', '/members', '/balances'];
-    for (const route of appRoutes) {
-        if (pathname.endsWith(route)) {
-            pathname = pathname.slice(0, -route.length);
-            break;
-        }
-    }
-    const cleanPath = pathname.replace(/\/$/, '');
+    // Clean pathname: remove trailing index.html, query remnants, and any client-side routes (including nested ones like /groups/:id or /members/:id)
+    const cleanPath = (window.location.pathname || '')
+        .replace(/\/index\.html.*$/, '')
+        .replace(/\/(?:settings|dashboard|groups|expenses|settlements|history|transactions|members|balances)(?:\/.*)?$/, '')
+        .replace(/\/$/, '');
     return origin + (cleanPath || '');
 }
 
@@ -554,11 +550,18 @@ export function parseTokenFromHash(hash) {
     const params = new URLSearchParams(cleanHash);
     const accessToken = params.get('access_token');
     const expiresIn = params.get('expires_in');
+    const error = params.get('error');
+    const errorDescription = params.get('error_description');
 
     if (accessToken) {
         return {
             accessToken,
             expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600
+        };
+    }
+    if (error) {
+        return {
+            error: errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : error
         };
     }
     return null;
