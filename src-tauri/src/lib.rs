@@ -169,13 +169,17 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
 // Custom command to safely write backup JSON to any path chosen in native dialog
 #[tauri::command]
 fn save_backup_file(path: String, content: String) -> Result<(), String> {
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     std::fs::write(&path, content).map_err(|e| format!("Failed to save backup: {}", e))
 }
 
 // Custom command to safely read backup JSON from any path chosen in native dialog
 #[tauri::command]
 fn read_backup_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read backup: {}", e))
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("Failed to read backup: {}", e))?;
+    Ok(content.trim_start_matches('\u{feff}').to_string())
 }
 
 pub fn run() {

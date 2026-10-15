@@ -135,16 +135,19 @@ export async function exportBackupJson(data, filename) {
  */
 export async function readJsonFile(file) {
     if (!file) throw new Error('No file selected');
+    let rawText = '';
     if (file.text) {
-        return await file.text();
+        rawText = await file.text();
+    } else {
+        // Fallback for older browsers
+        rawText = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsText(file);
+        });
     }
-    // Fallback for older browsers
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsText(file);
-    });
+    return typeof rawText === 'string' ? rawText.replace(/^\uFEFF/, '').trim() : rawText;
 }
 
 /**
@@ -180,6 +183,10 @@ export async function openDesktopBackupFile() {
                 // Fallback to Rust command if plugin-fs scope is restrictive
                 const { invoke } = await import('@tauri-apps/api/core');
                 content = await invoke('read_backup_file', { path: filePath });
+            }
+
+            if (content && typeof content === 'string') {
+                content = content.replace(/^\uFEFF/, '').trim();
             }
 
             return { success: true, method: 'tauri', filePath, content };

@@ -1499,7 +1499,8 @@ export function ExpenseProvider({ children }) {
     // Import Data
     const importData = (jsonString) => {
         try {
-            const imported = JSON.parse(jsonString);
+            const cleanJson = typeof jsonString === 'string' ? jsonString.replace(/^\uFEFF/, '').trim() : jsonString;
+            const imported = JSON.parse(cleanJson);
             if (!imported.data || typeof imported.data !== 'object') {
                 throw new Error('Invalid data structure: missing data object');
             }
