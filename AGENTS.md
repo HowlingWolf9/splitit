@@ -44,24 +44,24 @@
   - Preserve color fidelity using `print-color-adjust: exact !important;` and `-webkit-print-color-adjust: exact !important;`.
   - Prevent mid-card/row slicing across pages using `.print-avoid-break` and `break-inside: avoid; page-break-inside: avoid;`.
 
-## Windows PC Desktop Application (Electron)
+## Windows PC Desktop Application (Tauri v2)
 - **Local Development & Build Scripts**:
-  - `npm run electron:dev`: Starts Vite dev server with instant HMR and attaches the Electron window via `--dev-url`.
-  - `npm run build:pc`: Compiles the production bundle (`vite build`) and runs `electron-builder --win --x64 --publish never`.
+  - `npm run tauri:dev`: Starts Vite dev server with instant HMR and attaches the Tauri desktop window.
+  - `npm run build:pc`: Compiles the production bundle (`vite build`) and runs `tauri build`.
 - **Packaging Targets (`release/`)**:
-  - **NSIS Setup Installer**: `SplitIt-Setup-<version>.exe` (with customizable install directory, Start Menu, and Desktop shortcuts).
+  - **NSIS Setup Installer**: `SplitIt-Setup-<version>.exe` (customizable install directory, Start Menu, and Desktop shortcuts).
   - **Portable Executable**: `SplitIt-Portable-<version>.exe` (zero-install standalone `.exe` that runs from anywhere or a flash drive).
 - **Desktop Architecture & State Persistence**:
-  - Main Process: `electron/main.cjs` (manages window lifecycle, single instance lock, and native print dialogs).
-  - Preload Bridge: `electron/preload.cjs` (safely exposes `window.electronPrint`, `window.electronFile`, `window.electronAPI`, and binds `window.print()` to native spooler).
-  - Window Metrics: Default `1280x820`, min `400x600`, `autoHideMenuBar: true`, high-res application icon (`electron/assets/icon.ico`).
-  - State Persistence: `app.setPath('userData', ...)` targets `%APPDATA%\SplitIt`, ensuring persistent `localStorage` and `IndexedDB`.
+  - Core Process: `src-tauri/src/lib.rs` & `src-tauri/src/main.rs` (Rust backend with `tiny_http` OAuth loopback receiver and native backup file handlers).
+  - Frontend Bridge: Official Tauri v2 plugins (`@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-fs`, `@tauri-apps/plugin-opener`).
+  - Window Metrics: Default `1280x820`, min `400x600`, dark theme, high-res application icons (`src-tauri/icons/`).
+  - State Persistence: Microsoft Edge WebView2 persistent user profile, ensuring permanent `localStorage` and `IndexedDB`.
 - **Desktop Native Printing & PDF Export**:
   - Automatically activates when `triggerPrint` or `window.print()` is executed.
-  - Main process handles `splitit:print` IPC via `webContents.print({ silent: false, printBackground: true, color: true })`.
-  - Background graphics and color reproduction are enabled by default for statement exports.
+  - Edge WebView2 routes through the native Windows print preview & spooler with dynamic document title default naming.
 - **Tag-Driven CI/CD**:
   - Windows release builds run in `.github/workflows/pc-release.yml` on `v*` tags and `workflow_dispatch`.
+  - Uses `dtolnay/rust-toolchain@stable` and `swatinem/rust-cache@v2`.
   - Uploads both Setup and Portable `.exe` packages to the GitHub Release without altering Android APK assets (preserving Obtainium update detection).
 
 ## Core Feature Invariants & Pre-Completion Regression Checklist
@@ -76,8 +76,8 @@ The following invariants are strictly mandatory and must NEVER be regressed or a
    - Dynamic recalculation must only trigger when the user *actively* changes the `splitMode` or manually modifies the total amount.
    - When `splitMode === 'SHARES'` or `'PERCENTAGE'`, existing share ratios and percentage values must be preserved when the amount changes, recalculating only derived currency amounts.
 3. **Cross-Platform I/O Invariant**:
-   - **Printing**: Always route through `triggerPrint(docTitle)` in `src/utils/printHelper.js`, utilizing Android's native print spooler (`MainActivity.java` via `@JavascriptInterface`) and Electron's native print bridge (`electron/preload.cjs`).
-   - **Data Backup Export/Import**: Always route through `exportBackupJson()` and `openElectronBackupFile()` / `readJsonFile()` in `src/utils/fileHelper.js`. Never rely solely on web `<a download="blob:...">` (broken on Android WebView) or restrictive `<input type="file" accept=".json">` (which greys out JSON files in Android DocumentsUI; must accept `.json,application/json,text/plain,*/*`).
+   - **Printing**: Always route through `triggerPrint(docTitle)` in `src/utils/printHelper.js`, utilizing Android's native print spooler (`MainActivity.java` via `@JavascriptInterface`) and Windows WebView2 print bridge.
+   - **Data Backup Export/Import**: Always route through `exportBackupJson()` and `openDesktopBackupFile()` / `readJsonFile()` in `src/utils/fileHelper.js`. Never rely solely on web `<a download="blob:...">` (broken on Android WebView) or restrictive `<input type="file" accept=".json">` (which greys out JSON files in Android DocumentsUI; must accept `.json,application/json,text/plain,*/*`).
 4. **Single-Source UI Chrome Invariant**:
    - Navigation chrome (Top App Bar titles, back buttons via `src/utils/backButton.js`, bottom navigation, and the primary Add Expense FAB) is managed centrally in `src/App.jsx`.
    - Child views (`DashboardView`, `GroupsView`, `GroupDetailView`, `BalancesView`, `MembersView`, `AllTransactionsView`, `Settings`) must never render duplicate mobile headers, duplicate back buttons, or duplicate `.fab-container` elements. Use `.desktop-only-header` and `.desktop-only-action` to avoid double UI elements on mobile.

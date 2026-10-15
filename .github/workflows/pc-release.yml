@@ -40,6 +40,14 @@ jobs:
           node-version: 22
           cache: 'npm'
 
+      - name: Setup Rust Stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
       - name: Determine Version and Release Status
         id: versioning
         shell: bash
@@ -72,11 +80,25 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build Windows Executables (Vite + electron-builder)
+      - name: Build Windows Executables (Vite + Tauri v2)
         run: npm run build:pc
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID || '' }}
+
+      - name: Stage Release Artifacts
+        shell: bash
+        run: |
+          mkdir -p release
+          # Copy NSIS setup installer
+          if compgen -G "src-tauri/target/release/bundle/nsis/*.exe" > /dev/null; then
+            cp src-tauri/target/release/bundle/nsis/*.exe "release/SplitIt-Setup-${{ steps.versioning.outputs.RELEASE_TAG }}.exe"
+          fi
+          # Copy portable standalone binary
+          if [ -f "src-tauri/target/release/splitit.exe" ]; then
+            cp src-tauri/target/release/splitit.exe "release/SplitIt-Portable-${{ steps.versioning.outputs.RELEASE_TAG }}.exe"
+          fi
+          ls -la release/
 
       - name: Upload Windows Setup Installer Artifact
         uses: actions/upload-artifact@v4

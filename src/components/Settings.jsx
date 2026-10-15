@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import * as gdrive from '../services/googleDriveSync';
-import { exportBackupJson, readJsonFile, openElectronBackupFile, isElectron } from '../utils/fileHelper';
+import { exportBackupJson, readJsonFile, openDesktopBackupFile, isDesktopApp } from '../utils/fileHelper';
 import {
     Settings as SettingsIcon,
     Download,
@@ -66,12 +66,12 @@ export default function Settings() {
     };
 
     const handleImportClick = async () => {
-        if (isElectron()) {
+        if (isDesktopApp()) {
             if (!window.confirm('⚠️ Importing will replace all existing data. Are you sure you want to proceed?')) {
                 return;
             }
             try {
-                const res = await openElectronBackupFile();
+                const res = await openDesktopBackupFile();
                 if (res?.canceled) return;
                 if (res?.success && res.content) {
                     const result = importData(res.content);
@@ -82,7 +82,7 @@ export default function Settings() {
                     }
                 }
             } catch (err) {
-                console.error('Electron import error:', err);
+                console.error('Desktop import error:', err);
                 showMessage('error', 'Failed to read backup file');
             }
             return;

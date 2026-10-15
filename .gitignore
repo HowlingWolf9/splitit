@@ -40,7 +40,9 @@ android/.gradle
 android/build
 android/app/build
 
-# Desktop / Electron release builds
+# Desktop release builds
 release
 dist-electron
 *.exe
+src-tauri/target
+

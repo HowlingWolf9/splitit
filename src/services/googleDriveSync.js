@@ -824,6 +824,29 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         return;
     }
 
+    // 0. Tauri desktop loopback flow (opens Google OAuth in system default browser)
+    const isTauriEnv = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+    if (isTauriEnv) {
+        try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            const { openUrl } = await import('@tauri-apps/plugin-opener');
+
+            const callbackUrl = await invoke('start_oauth_listener');
+            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `client_id=${encodeURIComponent(activeClientId)}&` +
+                `redirect_uri=${encodeURIComponent(callbackUrl)}&` +
+                `response_type=token&` +
+                `scope=${encodeURIComponent(OAUTH_SCOPE)}&` +
+                `include_granted_scopes=true&` +
+                `prompt=${encodeURIComponent(promptMode)}`;
+
+            await openUrl(authUrl);
+            return;
+        } catch (tauriErr) {
+            console.warn('[SplitIt Tauri Auth] Failed loopback opener, falling back:', tauriErr);
+        }
+    }
+
     // 1. Wait briefly for GIS to load if not already ready
     if (!window.google?.accounts?.oauth2?.initTokenClient) {
         await ensureGisLoaded(1500);

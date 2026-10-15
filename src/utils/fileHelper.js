@@ -2,9 +2,19 @@
  * fileHelper.js
  * Cross-platform JSON backup export and import bridge supporting:
  * - Native Android WebView (via MainActivity @JavascriptInterface exportJson + MediaStore/Share Sheet)
- * - PC Desktop Electron (via splitit:save-file and splitit:open-file native dialogs)
+ * - PC Desktop Tauri (via native Save/Open file dialogs & filesystem bridge)
+ * - Legacy PC Desktop Electron (via splitit:save-file and splitit:open-file native dialogs)
  * - Standard Web Browsers (via Blob download + file input fallback)
  */
+
+/**
+ * Checks if running inside the Tauri desktop application
+ */
+export function isTauri() {
+    return typeof window !== 'undefined' && Boolean(
+        window.__TAURI_INTERNALS__ || window.__TAURI__
+    );
+}
 
 /**
  * Checks if running inside the Electron desktop application
@@ -13,6 +23,13 @@ export function isElectron() {
     return typeof window !== 'undefined' && Boolean(
         window.electronAPI?.saveFile || window.electronFile?.saveFile
     );
+}
+
+/**
+ * Checks if running inside either desktop environment (Tauri or Electron)
+ */
+export function isDesktopApp() {
+    return isTauri() || isElectron();
 }
 
 /**
@@ -33,7 +50,7 @@ export function getDefaultBackupFilename() {
 }
 
 /**
- * Exports data as a JSON file across Android, Electron, and Web
+ * Exports data as a JSON file across Android, Tauri, Electron, and Web
  * @param {Object|string} data - JSON string or JavaScript object to export
  * @param {string} [filename] - Optional filename
  * @returns {Promise<{success: boolean, canceled?: boolean, method: string, filePath?: string}>}
@@ -42,7 +59,39 @@ export async function exportBackupJson(data, filename) {
     const finalFilename = filename || getDefaultBackupFilename();
     const jsonString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
 
-    // 1. Electron Desktop Native Save Dialog
+    // 1. Tauri Desktop Native Save Dialog
+    if (isTauri()) {
+        try {
+            const { save } = await import('@tauri-apps/plugin-dialog');
+            const filePath = await save({
+                defaultPath: finalFilename,
+                filters: [
+                    { name: 'JSON Backup (*.json)', extensions: ['json'] },
+                    { name: 'All Files (*.*)', extensions: ['*'] }
+                ]
+            });
+
+            if (!filePath) {
+                return { success: false, canceled: true, method: 'tauri' };
+            }
+
+            try {
+                const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+                await writeTextFile(filePath, jsonString);
+            } catch {
+                // Fallback to Rust command if plugin-fs scope is restrictive
+                const { invoke } = await import('@tauri-apps/api/core');
+                await invoke('save_backup_file', { path: filePath, content: jsonString });
+            }
+
+            return { success: true, method: 'tauri', filePath };
+        } catch (err) {
+            console.error('[SplitIt Tauri Save] Error:', err);
+            throw new Error(err.message || 'Failed to save backup in Tauri');
+        }
+    }
+
+    // 2. Electron Desktop Native Save Dialog (legacy compatibility)
     if (isElectron()) {
         const saveFn = window.electronAPI?.saveFile || window.electronFile?.saveFile;
         const result = await saveFn(jsonString, finalFilename);
@@ -55,14 +104,14 @@ export async function exportBackupJson(data, filename) {
         throw new Error(result?.error || 'Failed to save backup in Electron');
     }
 
-    // 2. Android Native Bridge (MediaStore Downloads + Share Sheet)
+    // 3. Android Native Bridge (MediaStore Downloads + Share Sheet)
     if (isAndroidNative()) {
         const bridge = window.AndroidBridge?.exportJson ? window.AndroidBridge : window.AndroidPrint;
         bridge.exportJson(jsonString, finalFilename);
         return { success: true, method: 'android' };
     }
 
-    // 3. Web Browser Fallback (Blob URL + <a> download click)
+    // 4. Web Browser Fallback (Blob URL + <a> download click)
     const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -99,13 +148,55 @@ export async function readJsonFile(file) {
 }
 
 /**
- * Attempts native Electron open dialog or triggers fallback
+ * Attempts native desktop open dialog (Tauri or Electron) or triggers fallback
  * @returns {Promise<{success: boolean, canceled?: boolean, content?: string, filePath?: string}>}
  */
-export async function openElectronBackupFile() {
+export async function openDesktopBackupFile() {
+    // 1. Tauri Desktop Native Open Dialog
+    if (isTauri()) {
+        try {
+            const { open } = await import('@tauri-apps/plugin-dialog');
+            const selected = await open({
+                title: 'Import SplitIt Backup',
+                multiple: false,
+                directory: false,
+                filters: [
+                    { name: 'JSON Backup (*.json)', extensions: ['json'] },
+                    { name: 'Text / JSON Files', extensions: ['json', 'txt'] },
+                    { name: 'All Files (*.*)', extensions: ['*'] }
+                ]
+            });
+
+            if (!selected) {
+                return { success: false, canceled: true, method: 'tauri' };
+            }
+
+            const filePath = typeof selected === 'string' ? selected : selected.path;
+            let content = null;
+            try {
+                const { readTextFile } = await import('@tauri-apps/plugin-fs');
+                content = await readTextFile(filePath);
+            } catch {
+                // Fallback to Rust command if plugin-fs scope is restrictive
+                const { invoke } = await import('@tauri-apps/api/core');
+                content = await invoke('read_backup_file', { path: filePath });
+            }
+
+            return { success: true, method: 'tauri', filePath, content };
+        } catch (err) {
+            console.error('[SplitIt Tauri Open] Error:', err);
+            return { success: false, error: err.message || 'Failed to open backup in Tauri' };
+        }
+    }
+
+    // 2. Electron Desktop Native Open Dialog
     if (isElectron()) {
         const openFn = window.electronAPI?.openFile || window.electronFile?.openFile;
         return await openFn();
     }
+
     return { success: false, notSupported: true };
 }
+
+// Alias for backwards compatibility
+export const openElectronBackupFile = openDesktopBackupFile;

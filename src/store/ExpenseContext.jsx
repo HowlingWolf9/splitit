@@ -759,10 +759,30 @@ export function ExpenseProvider({ children }) {
         };
         window.addEventListener('message', handleMessage);
 
-        // 3. Electron native OAuth IPC listener
-        let unsubElectron = null;
-        if (window.electronOAuth?.onTokenReceived) {
-            unsubElectron = window.electronOAuth.onTokenReceived((hashPart) => {
+        // 3. Desktop native OAuth listeners (Tauri event listener & Electron IPC)
+        let unsubDesktop = null;
+        if (typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)) {
+            import('@tauri-apps/api/event').then(({ listen }) => {
+                listen('splitit:oauth-token', (event) => {
+                    const hashPart = typeof event.payload === 'string' ? event.payload : (event.payload?.hash || '');
+                    if (hashPart) {
+                        const tokenData = gdrive.parseTokenFromHash(hashPart);
+                        if (tokenData?.accessToken) {
+                            gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                            gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
+                            setSyncStatus('connected');
+                            setSyncError(null);
+                            setTimeout(() => syncNow(), 200);
+                        }
+                    }
+                }).then((unsub) => {
+                    unsubDesktop = unsub;
+                }).catch((err) => {
+                    console.warn('[SplitIt Tauri OAuth] listen error:', err);
+                });
+            }).catch(() => {});
+        } else if (window.electronOAuth?.onTokenReceived) {
+            unsubDesktop = window.electronOAuth.onTokenReceived((hashPart) => {
                 const tokenData = gdrive.parseTokenFromHash(hashPart);
                 if (tokenData?.accessToken) {
                     gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
@@ -776,7 +796,7 @@ export function ExpenseProvider({ children }) {
 
         return () => {
             window.removeEventListener('message', handleMessage);
-            if (typeof unsubElectron === 'function') unsubElectron();
+            if (typeof unsubDesktop === 'function') unsubDesktop();
         };
     }, [syncNow]);
 

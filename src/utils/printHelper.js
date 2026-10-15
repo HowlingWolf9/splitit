@@ -16,6 +16,17 @@ export const isNativeAndroid = () => {
 };
 
 /**
+ * Checks if the current execution environment is running inside Tauri desktop.
+ */
+export const isTauri = () => {
+    try {
+        return typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+    } catch {
+        return false;
+    }
+};
+
+/**
  * Checks if the current execution environment is running inside Electron desktop.
  * Verifies window.electronPrint bridge or Electron userAgent.
  */
@@ -31,6 +42,13 @@ export const isElectron = () => {
     } catch {
         return false;
     }
+};
+
+/**
+ * Checks if running inside any desktop wrapper (Tauri or Electron).
+ */
+export const isDesktopApp = () => {
+    return isTauri() || isElectron();
 };
 
 /**
@@ -58,11 +76,13 @@ export const formatPrintDocumentTitle = (customName = '') => {
 };
 
 /**
- * Unified printing & PDF export handler for Android native app, Windows Desktop (Electron), and Web.
+ * Unified printing & PDF export handler for Android native app, Windows Desktop (Tauri / Electron), and Web.
  *
  * - On Native Android: Invokes Android's native android.print.PrintManager via our
  *   WebView JavascriptInterface bridge (or local Capacitor plugin). This summons
  *   Android's native print spooler with "Save as PDF" and physical printers.
+ * - On Tauri Windows Desktop: WebView2 handles window.print() natively with the Windows
+ *   print preview & spooler, adopting the dynamic document.title as default PDF filename.
  * - On Electron Desktop: Invokes native Windows print spooler via Electron IPC bridge
  *   with background graphics enabled (printBackground: true) and dynamic document title.
  * - On Web / Desktop Browsers: Temporarily switches document.title to dynamic documentTitle
@@ -123,7 +143,7 @@ export const triggerPrint = async (documentTitle) => {
         }
     }
 
-    // 4. Web & Desktop Browser standard window.print()
+    // 4. Web & Desktop Browser / Tauri WebView2 standard window.print()
     if (typeof window !== 'undefined' && typeof window.print === 'function') {
         const originalTitle = document.title;
         try {

@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     watch: {
-      ignored: ['**/android/**', '**/artifacts/**', '**/release/**', '**/dist-electron/**', '**/*.keystore', '**/*.aab', '**/*.apk']
+      ignored: ['**/android/**', '**/artifacts/**', '**/release/**', '**/src-tauri/target/**', '**/*.keystore', '**/*.aab', '**/*.apk']
     }
   }
 })
