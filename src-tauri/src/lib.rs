@@ -26,7 +26,7 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
 
         while start_time.elapsed() < timeout_duration {
             match server.recv_timeout(Duration::from_millis(500)) {
-                Ok(Some(request)) => {
+                Ok(Some(mut request)) => {
                     let url = request.url().to_string();
 
                     // Handle CORS preflight OPTIONS request
