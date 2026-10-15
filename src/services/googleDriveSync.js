@@ -143,35 +143,100 @@ export function mergeAppState(localState, remoteState) {
 }
 
 /**
+ * Sanitizes Google OAuth Client ID by trimming whitespace,
+ * stripping accidental surrounding quotes, and removing trailing delimiters.
+ */
+export function sanitizeClientId(raw) {
+    if (!raw || typeof raw !== 'string') return '';
+    return raw
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/[;/\\#]+$/, '')
+        .trim();
+}
+
+/**
+ * Validates whether a Google OAuth Client ID is well-formed:
+ * - Must be non-empty
+ * - Must not be a placeholder (e.g. demo-client-id or your-client-id)
+ * - Must end with .apps.googleusercontent.com
+ * - Must match valid Google OAuth Web client ID syntax: <digits>-<hash>.apps.googleusercontent.com
+ */
+export function isValidClientId(raw) {
+    const sanitized = sanitizeClientId(raw);
+    if (!sanitized) return false;
+    if (
+        sanitized.includes('splitit-demo-client-id') ||
+        sanitized.includes('your-client-id') ||
+        sanitized.includes('example.com')
+    ) {
+        return false;
+    }
+    return /^[0-9]+-[a-zA-Z0-9_\-.]+\.apps\.googleusercontent\.com$/.test(sanitized);
+}
+
+/**
  * Returns active Google OAuth Client ID:
  * 1. User-configured custom client ID from localStorage
  * 2. Environment variable VITE_GOOGLE_CLIENT_ID
- * 3. Default fallback client ID
+ * 3. Returns empty string '' if unconfigured or invalid (never returns a fake/demo ID)
  */
 export function getClientId() {
     try {
         const custom = localStorage.getItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
-        if (custom && custom.trim().length > 0) {
-            return custom.trim();
+        const sanitizedCustom = sanitizeClientId(custom);
+        if (sanitizedCustom && isValidClientId(sanitizedCustom)) {
+            return sanitizedCustom;
         }
     } catch {
         // LocalStorage access fallback
     }
 
-    if (import.meta.env?.VITE_GOOGLE_CLIENT_ID) {
-        return import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const envId = sanitizeClientId(import.meta.env?.VITE_GOOGLE_CLIENT_ID);
+    if (envId && isValidClientId(envId)) {
+        return envId;
     }
 
-    // Default zero-server placeholder / fallback client ID for SplitIt
-    return '1048596041042-splitit-demo-client-id.apps.googleusercontent.com';
+    return '';
+}
+
+/**
+ * Identifies the source of the active Client ID:
+ * 'custom' | 'env' | 'none'
+ */
+export function getClientIdSource() {
+    try {
+        const custom = localStorage.getItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
+        const sanitizedCustom = sanitizeClientId(custom);
+        if (sanitizedCustom && isValidClientId(sanitizedCustom)) {
+            return 'custom';
+        }
+    } catch {
+        // LocalStorage fallback
+    }
+
+    const envId = sanitizeClientId(import.meta.env?.VITE_GOOGLE_CLIENT_ID);
+    if (envId && isValidClientId(envId)) {
+        return 'env';
+    }
+
+    return 'none';
+}
+
+/**
+ * Returns whether a valid Google OAuth Client ID is currently available
+ */
+export function hasConfiguredClientId() {
+    return Boolean(getClientId());
 }
 
 export function setCustomClientId(clientId) {
     try {
-        if (!clientId || clientId.trim().length === 0) {
+        const sanitized = sanitizeClientId(clientId);
+        if (!sanitized) {
             localStorage.removeItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
         } else {
-            localStorage.setItem(STORAGE_KEY_CUSTOM_CLIENT_ID, clientId.trim());
+            localStorage.setItem(STORAGE_KEY_CUSTOM_CLIENT_ID, sanitized);
         }
     } catch (e) {
         console.error('Failed to save custom client ID:', e);
@@ -180,10 +245,28 @@ export function setCustomClientId(clientId) {
 
 export function getCustomClientId() {
     try {
-        return localStorage.getItem(STORAGE_KEY_CUSTOM_CLIENT_ID) || '';
+        return sanitizeClientId(localStorage.getItem(STORAGE_KEY_CUSTOM_CLIENT_ID) || '');
     } catch {
         return '';
     }
+}
+
+/**
+ * Resolves standard OAuth redirect URI compatible with Google Web OAuth:
+ * - In Capacitor (Android/iOS) and local dev: 'http://localhost'
+ * - In hosted environments: origin + pathname (without trailing index.html)
+ */
+export function getOAuthRedirectUri() {
+    if (typeof window === 'undefined') return 'http://localhost';
+    const origin = window.location.origin || 'http://localhost';
+    if (origin === 'null' || origin.startsWith('file:')) {
+        return 'http://localhost';
+    }
+    if (origin.startsWith('http://localhost') || origin.startsWith('https://localhost')) {
+        return origin;
+    }
+    const cleanPath = (window.location.pathname || '').replace(/\/index\.html$/, '').replace(/\/$/, '');
+    return origin + (cleanPath || '');
 }
 
 /**
@@ -622,11 +705,21 @@ export async function syncWithDrive(localState, mergeFn) {
  * - Falls back to OAuth 2.0 implicit popup / redirect
  */
 export function initiateGoogleAuth({ clientId = getClientId(), onToken, onError }) {
+    const activeClientId = sanitizeClientId(clientId || getClientId());
+
+    if (!activeClientId || !isValidClientId(activeClientId)) {
+        const err = new Error(
+            'Google OAuth Client ID is missing or invalid. Please configure a valid Web Application Client ID (*.apps.googleusercontent.com) in Settings → Cloud Sync.'
+        );
+        onError?.(err);
+        return;
+    }
+
     // 1. Try Google Identity Services (GIS) if loaded in window
     if (window.google?.accounts?.oauth2?.initTokenClient) {
         try {
             const tokenClient = window.google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
+                client_id: activeClientId,
                 scope: OAUTH_SCOPE,
                 callback: (resp) => {
                     if (resp.error) {
@@ -642,14 +735,14 @@ export function initiateGoogleAuth({ clientId = getClientId(), onToken, onError 
             tokenClient.requestAccessToken({ prompt: 'consent' });
             return;
         } catch (e) {
-            console.warn('GIS initTokenClient failed, falling back to popup:', e);
+            console.warn('GIS initTokenClient failed, falling back to popup/redirect:', e);
         }
     }
 
     // 2. Fallback to standard OAuth 2.0 implicit flow via popup / redirect
-    const redirectUri = window.location.origin + window.location.pathname;
+    const redirectUri = getOAuthRedirectUri();
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${encodeURIComponent(clientId)}&` +
+        `client_id=${encodeURIComponent(activeClientId)}&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `response_type=token&` +
         `scope=${encodeURIComponent(OAUTH_SCOPE)}&` +
@@ -664,7 +757,7 @@ export function initiateGoogleAuth({ clientId = getClientId(), onToken, onError 
     );
 
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        // Popup was blocked: navigate in place as last resort
+        // Popup was blocked or unsupported (e.g. Android WebView): navigate in place
         window.location.href = authUrl;
         return;
     }

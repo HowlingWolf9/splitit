@@ -30,7 +30,6 @@ export default function BalancesView() {
         getGroupBalances,
         calculateCollectorSimplifiedSettlements,
         selectedGroupId,
-        setSelectedGroupId,
         selectedGroup
     } = useExpenses();
     const groupFilter = selectedGroupId || 'ALL';
@@ -46,12 +45,6 @@ export default function BalancesView() {
 
     useModalBackHandler(!!settleTarget, () => setSettleTarget(null));
     useModalBackHandler(showPrintModal, () => setShowPrintModal(false));
-
-    const handleGroupFilterChange = (e) => {
-        const val = e.target.value;
-        if (val === 'ALL') setSelectedGroupId(null);
-        else setSelectedGroupId(val);
-    };
 
     const formatMoney = (val) => {
         return new Intl.NumberFormat('en-US', {
@@ -567,57 +560,23 @@ export default function BalancesView() {
             <div className="screen-only" style={{ display: 'grid', gap: '1.25rem' }}>
                 {/* Header & Controls Toolbar */}
                 <div className="card" style={{ padding: '1.25rem' }}>
+                    <div className="desktop-only-header" style={{ marginBottom: '1rem' }}>
+                        <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
+                            Balances & Settlements {selectedGroup ? `— ${selectedGroup.name}` : ''}
+                        </h2>
+                        <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
+                            Calculated repayment plan to clear all pending debts
+                        </span>
+                    </div>
+
+                    {/* Segmented Mode Selector & Action Controls */}
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        marginBottom: '1rem',
-                        flexWrap: 'wrap',
-                        gap: '0.75rem'
+                        gap: '0.75rem',
+                        flexWrap: 'wrap'
                     }}>
-                        <div className="desktop-only-header">
-                            <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
-                                Balances & Settlements {selectedGroup ? `— ${selectedGroup.name}` : ''}
-                            </h2>
-                            <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                                Calculated repayment plan to clear all pending debts
-                            </span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <select
-                                className="input"
-                                value={groupFilter}
-                                onChange={handleGroupFilterChange}
-                                style={{ maxWidth: '180px', padding: '0.42rem 0.65rem', fontSize: '0.84rem' }}
-                            >
-                                <option value="ALL">All Groups</option>
-                                <option value="non-group">Non-group expenses</option>
-                                {(state.groups || []).map(g => (
-                                    <option key={g.id} value={g.id}>👥 {g.name}</option>
-                                ))}
-                            </select>
-
-                            <button
-                                onClick={handlePrint}
-                                className="btn btn-secondary btn-sm print-hide"
-                                title="Export or Print Custom PDF Statement"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                            >
-                                <Printer size={15} />
-                                <span>PDF Statement</span>
-                            </button>
-                        </div>
-                    </div>
-
-                {/* Segmented Mode Selector & Expand All Toggle */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    flexWrap: 'wrap'
-                }}>
                     <div style={{
                         display: 'inline-flex',
                         background: 'hsl(var(--color-surface-dim))',
@@ -670,24 +629,36 @@ export default function BalancesView() {
                         </button>
                     </div>
 
-                    {settlements.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {settlements.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={toggleAllExpanded}
+                                className="btn btn-secondary btn-sm"
+                                style={{
+                                    fontSize: '0.78rem',
+                                    padding: '0.35rem 0.75rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem'
+                                }}
+                                title={allExpanded ? "Collapse all breakdowns" : "Expand all settlement breakdowns"}
+                            >
+                                {allExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                <span>{allExpanded ? 'Collapse All' : 'Expand All Breakdowns'}</span>
+                            </button>
+                        )}
+
                         <button
-                            type="button"
-                            onClick={toggleAllExpanded}
-                            className="btn btn-secondary btn-sm"
-                            style={{
-                                fontSize: '0.78rem',
-                                padding: '0.35rem 0.75rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem'
-                            }}
-                            title={allExpanded ? "Collapse all breakdowns" : "Expand all settlement breakdowns"}
+                            onClick={handlePrint}
+                            className="btn btn-secondary btn-sm print-hide"
+                            title="Export or Print Custom PDF Statement"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                         >
-                            {allExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            <span>{allExpanded ? 'Collapse All' : 'Expand All Breakdowns'}</span>
+                            <Printer size={15} />
+                            <span>PDF Statement</span>
                         </button>
-                    )}
+                    </div>
                 </div>
             </div>
 

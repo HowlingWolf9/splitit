@@ -5,7 +5,7 @@ import ExpenseForm from './ExpenseForm';
 import { useModalBackHandler } from '../utils/backButton';
 
 export default function ExpenseListView({ onEditTransaction, onViewTransaction }) {
-    const { state, selectedGroupId, setSelectedGroupId, selectedGroup } = useExpenses();
+    const { state, selectedGroupId, selectedGroup } = useExpenses();
     const [sortBy, setSortBy] = useState('date-desc');
     const [showForm, setShowForm] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
@@ -56,13 +56,6 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
     };
 
     useModalBackHandler(showForm, handleCloseForm);
-
-    const handleGroupFilterChange = (e) => {
-        const val = e.target.value;
-        if (val === 'ALL') setSelectedGroupId(null);
-        else if (val === 'NON_GROUP') setSelectedGroupId('non-group');
-        else setSelectedGroupId(val);
-    };
 
     // Filter only expenses
     const expenses = (state.transactions || []).filter(t => t.type === 'EXPENSE');
@@ -172,21 +165,7 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                         />
                     </div>
 
-                    {/* Group Filter */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <select
-                            className="input"
-                            value={groupFilter}
-                            onChange={handleGroupFilterChange}
-                            style={{ maxWidth: '170px', padding: '0.45rem 0.65rem', fontSize: '0.84rem' }}
-                        >
-                            <option value="ALL">All Groups</option>
-                            <option value="NON_GROUP">Non-group</option>
-                            {(state.groups || []).map(g => (
-                                <option key={g.id} value={g.id}>👥 {g.name}</option>
-                            ))}
-                        </select>
-                    </div>
+
 
                     {/* Sort Filter */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>

@@ -7,7 +7,7 @@ import SettlementForm from './SettlementForm';
 import { useModalBackHandler } from '../utils/backButton';
 
 export default function AllTransactionsView({ onViewTransaction, onViewSettlement }) {
-    const { state, selectedGroupId, setSelectedGroupId, selectedGroup } = useExpenses();
+    const { state, selectedGroupId, selectedGroup } = useExpenses();
     const [sortBy, setSortBy] = useState('date-desc');
     const [searchQuery, setSearchQuery] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
@@ -21,13 +21,6 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
     useModalBackHandler(isAddingSettlement, () => setIsAddingSettlement(false));
 
     const groupFilter = selectedGroupId === 'non-group' ? 'NON_GROUP' : (selectedGroupId || 'ALL');
-
-    const handleGroupFilterChange = (e) => {
-        const val = e.target.value;
-        if (val === 'ALL') setSelectedGroupId(null);
-        else if (val === 'NON_GROUP') setSelectedGroupId('non-group');
-        else setSelectedGroupId(val);
-    };
 
     const transactions = state.transactions || [];
 
@@ -97,59 +90,45 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
         <div style={{ display: 'grid', gap: '1.25rem' }}>
             {/* Header & Controls Toolbar */}
             <div className="card" style={{ padding: '1.25rem' }}>
+                <div className="desktop-only-header" style={{ marginBottom: '1rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
+                        Activity Ledger {selectedGroup ? `— ${selectedGroup.name}` : ''}
+                    </h2>
+                    <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
+                        {filteredTransactions.length} recorded events
+                    </span>
+                </div>
+
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    marginBottom: '1rem',
-                    flexWrap: 'wrap',
-                    gap: '0.75rem'
+                    gap: '0.65rem',
+                    marginBottom: '0.85rem',
+                    flexWrap: 'wrap'
                 }}>
-                    <div className="desktop-only-header">
-                        <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
-                            Activity Ledger {selectedGroup ? `— ${selectedGroup.name}` : ''}
-                        </h2>
-                        <span style={{ fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
-                            {filteredTransactions.length} recorded events
-                        </span>
-                    </div>
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setIsAddingSettlement(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                        <HandCoins size={15} />
+                        <span>Record Settlement</span>
+                    </button>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setIsAddingSettlement(true)}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                        >
-                            <HandCoins size={15} />
-                            <span>Record Settlement</span>
-                        </button>
-                        <select
-                            className="input"
-                            value={groupFilter}
-                            onChange={handleGroupFilterChange}
-                            style={{ maxWidth: '170px', padding: '0.42rem 0.65rem', fontSize: '0.84rem' }}
-                        >
-                            <option value="ALL">All Groups</option>
-                            <option value="NON_GROUP">Non-group</option>
-                            {(state.groups || []).map(g => (
-                                <option key={g.id} value={g.id}>👥 {g.name}</option>
-                            ))}
-                        </select>
-
-                        <select
-                            className="input"
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            style={{ maxWidth: '150px', padding: '0.42rem 0.65rem', fontSize: '0.84rem' }}
-                        >
-                            <option value="date-desc">Newest First</option>
-                            <option value="date-asc">Oldest First</option>
-                            <option value="amount-desc">Highest Amount</option>
-                            <option value="amount-asc">Lowest Amount</option>
-                            <option value="desc-asc">Title A-Z</option>
-                        </select>
-                    </div>
+                    <select
+                        className="input"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        style={{ maxWidth: '160px', padding: '0.42rem 0.65rem', fontSize: '0.84rem' }}
+                    >
+                        <option value="date-desc">Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="amount-desc">Highest Amount</option>
+                        <option value="amount-asc">Lowest Amount</option>
+                        <option value="desc-asc">Title A-Z</option>
+                    </select>
                 </div>
 
                 {/* Search */}

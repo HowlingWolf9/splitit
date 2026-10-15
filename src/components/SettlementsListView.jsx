@@ -5,7 +5,7 @@ import SettlementForm from './SettlementForm';
 import { useModalBackHandler } from '../utils/backButton';
 
 export default function SettlementsListView({ onViewSettlement }) {
-    const { state, selectedGroupId, setSelectedGroupId, selectedGroup } = useExpenses();
+    const { state, selectedGroupId, selectedGroup } = useExpenses();
     const [sortBy, setSortBy] = useState('date-desc');
     const [showForm, setShowForm] = useState(false);
     const [editingSettlement, setEditingSettlement] = useState(null);
@@ -17,13 +17,6 @@ export default function SettlementsListView({ onViewSettlement }) {
     });
 
     const groupFilter = selectedGroupId === 'non-group' ? 'NON_GROUP' : (selectedGroupId || 'ALL');
-
-    const handleGroupFilterChange = (e) => {
-        const val = e.target.value;
-        if (val === 'ALL') setSelectedGroupId(null);
-        else if (val === 'NON_GROUP') setSelectedGroupId('non-group');
-        else setSelectedGroupId(val);
-    };
 
     const formatMoney = (val) => {
         return new Intl.NumberFormat('en-US', {
@@ -172,20 +165,7 @@ export default function SettlementsListView({ onViewSettlement }) {
                         />
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <select
-                            className="input"
-                            value={groupFilter}
-                            onChange={handleGroupFilterChange}
-                            style={{ maxWidth: '170px', padding: '0.45rem 0.65rem', fontSize: '0.84rem' }}
-                        >
-                            <option value="ALL">All Groups</option>
-                            <option value="NON_GROUP">Non-group</option>
-                            {(state.groups || []).map(g => (
-                                <option key={g.id} value={g.id}>👥 {g.name}</option>
-                            ))}
-                        </select>
-                    </div>
+
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <select

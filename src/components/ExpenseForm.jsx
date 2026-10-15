@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { useModalBackHandler } from '../utils/backButton';
 import { CheckCircle2, Trash2, Layers, Plus, Check, HandCoins } from 'lucide-react';
@@ -257,6 +257,7 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
             setSplitAmounts(extractSplitAmounts(expenseToEdit));
             setSplitAmountsManual(extractSplitAmountsManual(expenseToEdit));
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [expenseToEdit]);
 
     // When group changes, update split selection defaults

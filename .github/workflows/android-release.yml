@@ -85,6 +85,8 @@ jobs:
 
       - name: Build Web Application (Vite)
         run: npm run build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID || '' }}
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew

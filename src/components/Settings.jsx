@@ -69,6 +69,15 @@ export default function Settings() {
     const [clientIdInput, setClientIdInput] = useState(customClientId || '');
     const [clientIdSaved, setClientIdSaved] = useState(false);
 
+    const handleConnectDrive = () => {
+        if (!gdrive.hasConfiguredClientId()) {
+            setAdvancedOpen(true);
+            showMessage('error', 'Google OAuth Client ID is not configured. Please enter your Web Application Client ID below or open the Setup Guide.');
+            return;
+        }
+        connectDrive();
+    };
+
 
     // Manual token input state
     const [manualTokenInput, setManualTokenInput] = useState('');
@@ -154,16 +163,22 @@ export default function Settings() {
 
     const handleSaveClientId = (e) => {
         e.preventDefault();
-        setCustomClientId(clientIdInput.trim());
+        const cleaned = gdrive.sanitizeClientId(clientIdInput);
+        if (cleaned && !gdrive.isValidClientId(cleaned)) {
+            showMessage('error', 'Invalid Client ID. It must end with .apps.googleusercontent.com (Web Application)');
+            return;
+        }
+        setCustomClientId(cleaned);
+        setClientIdInput(cleaned);
         setClientIdSaved(true);
         setTimeout(() => setClientIdSaved(false), 3000);
-        showMessage('success', 'OAuth Client ID saved successfully!');
+        showMessage('success', cleaned ? 'OAuth Client ID saved successfully!' : 'Cleared custom Client ID');
     };
 
     const handleResetClientId = () => {
         setClientIdInput('');
         setCustomClientId('');
-        showMessage('success', 'Reset to SplitIt default Client ID');
+        showMessage('success', 'Reset custom Client ID');
     };
 
     const handleSaveManualToken = async (e) => {
@@ -413,6 +428,54 @@ export default function Settings() {
                         </div>
                     )}
 
+                    {/* Unconfigured Client ID Banner */}
+                    {!gdrive.hasConfiguredClientId() && (
+                        <div style={{
+                            padding: '0.75rem 0.95rem',
+                            marginBottom: '1rem',
+                            borderRadius: 'var(--radius-md)',
+                            backgroundColor: 'hsl(var(--color-accent) / 0.1)',
+                            color: 'hsl(var(--color-text-main))',
+                            border: '1px solid hsl(var(--color-accent) / 0.3)',
+                            fontSize: '0.84rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '0.65rem'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Key size={16} style={{ color: 'hsl(var(--color-accent))', flexShrink: 0 }} />
+                                <span>
+                                    <strong>OAuth Client ID required:</strong> Enter a Google Cloud Web Client ID to link Google Drive.
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        setAdvancedOpen(true);
+                                        setIsGuideOpen(true);
+                                    }}
+                                    style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+                                >
+                                    <HelpCircle size={13} />
+                                    <span>Setup Guide</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => setAdvancedOpen(true)}
+                                    style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+                                >
+                                    <Key size={13} />
+                                    <span>Enter Client ID</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Sync Status Info Card */}
                     <div style={{
                         background: 'hsl(var(--color-surface-dim))',
@@ -443,7 +506,7 @@ export default function Settings() {
                                     <button
                                         type="button"
                                         className="btn btn-primary btn-sm"
-                                        onClick={connectDrive}
+                                        onClick={handleConnectDrive}
                                         style={{ minHeight: '38px' }}
                                     >
                                         <Cloud size={15} />
@@ -581,10 +644,25 @@ export default function Settings() {
                             }}>
                                 {/* Custom Client ID */}
                                 <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                                        <label style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-                                            Custom Google Cloud Client ID
-                                        </label>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <label style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                                                Google Cloud OAuth Client ID
+                                            </label>
+                                            {customClientId ? (
+                                                <span style={{ fontSize: '0.72rem', color: 'hsl(var(--color-success))', fontWeight: 700, background: 'hsl(var(--color-success-soft))', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-full)' }}>
+                                                    Custom ID Active
+                                                </span>
+                                            ) : gdrive.getClientIdSource() === 'env' ? (
+                                                <span style={{ fontSize: '0.72rem', color: 'hsl(var(--color-accent))', fontWeight: 700, background: 'hsl(var(--color-accent) / 0.1)', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-full)' }}>
+                                                    Environment ID Active
+                                                </span>
+                                            ) : (
+                                                <span style={{ fontSize: '0.72rem', color: 'hsl(var(--color-danger-text))', fontWeight: 700, background: 'hsl(var(--color-danger-soft))', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-full)' }}>
+                                                    Not Configured
+                                                </span>
+                                            )}
+                                        </div>
                                         <button
                                             type="button"
                                             onClick={() => setIsGuideOpen(true)}
@@ -603,7 +681,7 @@ export default function Settings() {
                                         </button>
                                     </div>
                                     <p style={{ margin: '0 0 0.5rem', fontSize: '0.76rem', color: 'hsl(var(--color-text-muted))' }}>
-                                        Use your own Google Cloud OAuth 2.0 Web Client ID for complete self-hosted independence, or leave empty for default.
+                                        Must be a <strong>Web application</strong> Client ID (ending in <code>.apps.googleusercontent.com</code>). Saved locally on this device in localStorage so Android APK and desktop users can connect without rebuilding.
                                     </p>
 
                                     <form onSubmit={handleSaveClientId} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -626,7 +704,7 @@ export default function Settings() {
                                                 onClick={handleResetClientId}
                                                 style={{ fontSize: '0.78rem' }}
                                             >
-                                                Reset
+                                                Clear
                                             </button>
                                         )}
                                     </form>
@@ -956,13 +1034,13 @@ export default function Settings() {
                                     <strong>Create Credentials:</strong>
                                     <ul style={{ paddingLeft: '1rem', marginTop: '0.25rem', fontSize: '0.82rem', color: 'hsl(var(--color-text-muted))' }}>
                                         <li>Click <strong>Create Credentials &gt; OAuth client ID</strong></li>
-                                        <li>Application type: <strong>Web application</strong></li>
+                                        <li>Application type: <strong>Web application</strong> (<em>Important:</em> Do NOT choose "Android" — Google requires Web application credentials for in-app browser token flows)</li>
                                         <li>Authorized JavaScript origins: add <code>http://localhost</code> and <code>https://localhost</code> (plus your web URL if hosted)</li>
-                                        <li>Authorized redirect URIs: add <code>http://localhost</code> and <code>https://localhost</code></li>
+                                        <li>Authorized redirect URIs: add <code>http://localhost</code>, <code>http://localhost/</code>, <code>https://localhost</code>, and <code>https://localhost/</code></li>
                                     </ul>
                                 </li>
                                 <li>
-                                    <strong>Copy Client ID:</strong> Paste the generated Client ID (ending in <code>.apps.googleusercontent.com</code>) into the field above and click <strong>Save ID</strong>!
+                                    <strong>Copy Client ID:</strong> Paste the generated Client ID (e.g. <code>123456-xxx.apps.googleusercontent.com</code>) into the field above and click <strong>Save ID</strong>!
                                 </li>
                             </ol>
 
