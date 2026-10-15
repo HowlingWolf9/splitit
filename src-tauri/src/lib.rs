@@ -1,6 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
 // Custom command to start a temporary localhost loopback server for Google OAuth
@@ -22,25 +21,27 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
 
     // Spawn server handling in a background thread
     thread::spawn(move || {
-        let is_running = Arc::new(AtomicBool::new(true));
+        let start_time = Instant::now();
+        let timeout_duration = Duration::from_secs(300); // 5-minute timeout
 
-        // Timeout safeguard: auto stop after 5 minutes if no response
-        let is_running_timeout = is_running.clone();
-        thread::spawn(move || {
-            thread::sleep(std::time::Duration::from_secs(300));
-            is_running_timeout.store(false, Ordering::Relaxed);
-        });
+        while start_time.elapsed() < timeout_duration {
+            match server.recv_timeout(Duration::from_millis(500)) {
+                Ok(Some(request)) => {
+                    let url = request.url().to_string();
 
-        for request in server.incoming_requests() {
-            if !is_running.load(Ordering::Relaxed) {
-                break;
-            }
+                    // Handle CORS preflight OPTIONS request
+                    if *request.method() == tiny_http::Method::Options {
+                        let response = tiny_http::Response::empty(204)
+                            .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap())
+                            .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"POST, GET, OPTIONS"[..]).unwrap())
+                            .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"Content-Type"[..]).unwrap());
+                        let _ = request.respond(response);
+                        continue;
+                    }
 
-            let url = request.url().to_string();
-
-            if url.starts_with("/callback") {
-                // Return an HTML page that reads the hash fragment and POSTs it back to /token
-                let html = r#"<!DOCTYPE html>
+                    if url.starts_with("/callback") {
+                        // Return an HTML page that reads the hash fragment and POSTs it back to /token
+                        let html = r#"<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -105,42 +106,59 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
 </body>
 </html>"#;
 
-                let response = tiny_http::Response::from_string(html)
-                    .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap());
-                let _ = request.respond(response);
-            } else if url.starts_with("/token") {
-                let mut content = String::new();
-                let mut reader = request.as_reader();
-                let _ = std::io::Read::read_to_string(&mut reader, &mut content);
+                        let response = tiny_http::Response::from_string(html)
+                            .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap());
+                        let _ = request.respond(response);
+                    } else if url.starts_with("/token") {
+                        if *request.method() != tiny_http::Method::Post {
+                            let response = tiny_http::Response::from_string("Method Not Allowed")
+                                .with_status_code(405);
+                            let _ = request.respond(response);
+                            continue;
+                        }
 
-                // Parse json: {"hash": "..."}
-                let hash_val = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                    json.get("hash").and_then(|v| v.as_str()).unwrap_or(&content).to_string()
-                } else {
-                    content
-                };
+                        let mut content = String::new();
+                        let mut reader = request.as_reader();
+                        let _ = std::io::Read::read_to_string(&mut reader, &mut content);
 
-                // Emit event to Tauri frontend
-                let _ = app_handle.emit("splitit:oauth-token", hash_val);
+                        // Parse json: {"hash": "..."}
+                        let hash_val = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                            json.get("hash").and_then(|v| v.as_str()).unwrap_or(&content).to_string()
+                        } else {
+                            content
+                        };
 
-                // Focus main window
-                if let Some(win) = app_handle.get_webview_window("main") {
-                    let _ = win.unminimize();
-                    let _ = win.set_focus();
+                        // Emit event to Tauri frontend
+                        let _ = app_handle.emit("splitit:oauth-token", hash_val);
+
+                        // Restore, show, and focus main window
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.unminimize();
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+
+                        let response = tiny_http::Response::from_string("{\"status\":\"ok\"}")
+                            .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap())
+                            .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap());
+                        let _ = request.respond(response);
+
+                        // Terminate listener loop after successfully receiving token
+                        break;
+                    } else {
+                        let response = tiny_http::Response::from_string("Not Found")
+                            .with_status_code(404);
+                        let _ = request.respond(response);
+                    }
                 }
-
-                let response = tiny_http::Response::from_string("{\"status\":\"ok\"}")
-                    .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap())
-                    .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap());
-                let _ = request.respond(response);
-
-                // Terminate listener loop after receiving token
-                is_running.store(false, Ordering::Relaxed);
-                break;
-            } else {
-                let response = tiny_http::Response::from_string("Not Found")
-                    .with_status_code(404);
-                let _ = request.respond(response);
+                Ok(None) => {
+                    // Timeout elapsed on socket recv, continue checking total duration
+                    continue;
+                }
+                Err(_) => {
+                    // Socket error occurred, exit loop
+                    break;
+                }
             }
         }
     });

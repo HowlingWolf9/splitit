@@ -80,6 +80,8 @@ export default function Settings() {
                     } else {
                         showMessage('error', result.error || 'Failed to import data');
                     }
+                } else if (res?.error) {
+                    showMessage('error', res.error);
                 }
             } catch (err) {
                 console.error('Desktop import error:', err);

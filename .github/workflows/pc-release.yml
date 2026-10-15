@@ -46,7 +46,7 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: 'src-tauri'
 
       - name: Determine Version and Release Status
         id: versioning
@@ -94,9 +94,11 @@ jobs:
           if compgen -G "src-tauri/target/release/bundle/nsis/*.exe" > /dev/null; then
             cp src-tauri/target/release/bundle/nsis/*.exe "release/SplitIt-Setup-${{ steps.versioning.outputs.RELEASE_TAG }}.exe"
           fi
-          # Copy portable standalone binary
+          # Copy portable standalone binary (handling both lowercase and PascalCase)
           if [ -f "src-tauri/target/release/splitit.exe" ]; then
-            cp src-tauri/target/release/splitit.exe "release/SplitIt-Portable-${{ steps.versioning.outputs.RELEASE_TAG }}.exe"
+            cp "src-tauri/target/release/splitit.exe" "release/SplitIt-Portable-${{ steps.versioning.outputs.RELEASE_TAG }}.exe"
+          elif [ -f "src-tauri/target/release/SplitIt.exe" ]; then
+            cp "src-tauri/target/release/SplitIt.exe" "release/SplitIt-Portable-${{ steps.versioning.outputs.RELEASE_TAG }}.exe"
           fi
           ls -la release/
 

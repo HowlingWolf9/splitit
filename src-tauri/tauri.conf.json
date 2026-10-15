@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SplitIt",
-  "version": "1.7.0",
+  "mainBinaryName": "splitit",
+  "version": "1.7.1",
   "identifier": "com.splitit.expensemanager",
   "build": {
     "beforeDevCommand": "npm run dev",

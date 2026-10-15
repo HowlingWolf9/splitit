@@ -760,10 +760,12 @@ export function ExpenseProvider({ children }) {
         window.addEventListener('message', handleMessage);
 
         // 3. Desktop native OAuth listeners (Tauri event listener & Electron IPC)
+        let isMounted = true;
         let unsubDesktop = null;
         if (typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)) {
             import('@tauri-apps/api/event').then(({ listen }) => {
-                listen('splitit:oauth-token', (event) => {
+                if (!isMounted) return null;
+                return listen('splitit:oauth-token', (event) => {
                     const hashPart = typeof event.payload === 'string' ? event.payload : (event.payload?.hash || '');
                     if (hashPart) {
                         const tokenData = gdrive.parseTokenFromHash(hashPart);
@@ -775,12 +777,16 @@ export function ExpenseProvider({ children }) {
                             setTimeout(() => syncNow(), 200);
                         }
                     }
-                }).then((unsub) => {
-                    unsubDesktop = unsub;
-                }).catch((err) => {
-                    console.warn('[SplitIt Tauri OAuth] listen error:', err);
                 });
-            }).catch(() => {});
+            }).then((unsub) => {
+                if (!isMounted) {
+                    if (typeof unsub === 'function') unsub();
+                } else if (unsub) {
+                    unsubDesktop = unsub;
+                }
+            }).catch((err) => {
+                console.warn('[SplitIt Tauri OAuth] listen error:', err);
+            });
         } else if (window.electronOAuth?.onTokenReceived) {
             unsubDesktop = window.electronOAuth.onTokenReceived((hashPart) => {
                 const tokenData = gdrive.parseTokenFromHash(hashPart);
@@ -795,6 +801,7 @@ export function ExpenseProvider({ children }) {
         }
 
         return () => {
+            isMounted = false;
             window.removeEventListener('message', handleMessage);
             if (typeof unsubDesktop === 'function') unsubDesktop();
         };
