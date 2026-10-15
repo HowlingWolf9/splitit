@@ -8,28 +8,15 @@
     "core:window:allow-unminimize",
     "core:window:allow-show",
     "core:window:allow-set-focus",
-    "allow-start-oauth-listener",
-    "allow-save-backup-file",
-    "allow-read-backup-file",
+    "allow-start_oauth_listener",
+    "allow-save_backup_file",
+    "allow-read_backup_file",
     "dialog:default",
     "dialog:allow-save",
     "dialog:allow-open",
     "fs:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
-    {
-      "identifier": "fs:scope",
-      "allow": [
-        { "path": "**" }
-      ]
-    },
-    "opener:default",
-    {
-      "identifier": "opener:allow-open-url",
-      "allow": [
-        { "url": "https://accounts.google.com/*" },
-        { "url": "https://*/*" }
-      ]
-    }
+    "opener:default"
   ]
 }
