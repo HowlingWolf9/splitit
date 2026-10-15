@@ -1,6 +1,6 @@
 [package]
 name = "splitit"
-version = "1.7.4"
+version = "1.7.5"
 description = "SplitIt - Modern Expense Manager"
 authors = ["HowlingWolf9"]
 edition = "2021"

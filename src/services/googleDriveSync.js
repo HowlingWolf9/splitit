@@ -155,7 +155,9 @@ export function sanitizeClientId(raw) {
     if (!raw || typeof raw !== 'string') return '';
     return raw
         .trim()
-        .replace(/^["']|["']$/g, '')
+        .replace(/[;/\\#]+$/, '')
+        .trim()
+        .replace(/^["']+|["']+$/g, '')
         .replace(/[;/\\#]+$/, '')
         .trim();
 }
@@ -294,7 +296,27 @@ export function ensureGisLoaded(timeoutMs = 2500) {
 }
 
 /**
- * Silently attempts to refresh or restore the access token via GIS
+ * Detects whether the current device is a mobile browser or touch device
+ */
+export function isMobileDevice() {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(ua);
+    const hasTouchScreen = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0) && window.innerWidth <= 1024;
+    return isMobileUA || hasTouchScreen;
+}
+
+/**
+ * Detects whether the current environment is running inside Capacitor native container or on mobile
+ */
+export function isMobileOrNative() {
+    if (typeof window === 'undefined') return false;
+    if (window.Capacitor?.isNativePlatform?.()) return true;
+    return isMobileDevice();
+}
+
+/**
+ * Silently attempts to refresh or restore the access token via GIS (desktop only)
  */
 export async function trySilentRestore() {
     try {
@@ -303,6 +325,11 @@ export async function trySilentRestore() {
         // If currently valid token exists, verify connection
         if (isAuthenticated()) {
             return true;
+        }
+
+        // On mobile/native, avoid background GIS popup attempts that can stall on third-party cookie restrictions
+        if (isMobileOrNative()) {
+            return false;
         }
 
         const clientId = getClientId();
@@ -359,10 +386,13 @@ export async function trySilentRestore() {
 /**
  * Resolves standard OAuth redirect URI compatible with Google Web OAuth:
  * - In Capacitor (Android/iOS) and local dev: 'http://localhost'
- * - In hosted environments: origin + pathname (without trailing index.html)
+ * - In hosted environments: origin + base pathname (without trailing index.html or client-side routes)
  */
 export function getOAuthRedirectUri() {
     if (typeof window === 'undefined') return 'http://localhost';
+    if (window.Capacitor?.isNativePlatform?.()) {
+        return 'http://localhost';
+    }
     const origin = window.location.origin || 'http://localhost';
     if (origin === 'null' || origin.startsWith('file:')) {
         return 'http://localhost';
@@ -370,7 +400,17 @@ export function getOAuthRedirectUri() {
     if (origin.startsWith('http://localhost') || origin.startsWith('https://localhost')) {
         return origin;
     }
-    const cleanPath = (window.location.pathname || '').replace(/\/index\.html$/, '').replace(/\/$/, '');
+    // Clean pathname: remove trailing index.html
+    let pathname = (window.location.pathname || '').replace(/\/index\.html$/, '');
+    // Strip known client-side React routes to keep redirect_uri pointing to app base
+    const appRoutes = ['/settings', '/dashboard', '/groups', '/expenses', '/settlements', '/history', '/transactions', '/members', '/balances'];
+    for (const route of appRoutes) {
+        if (pathname.endsWith(route)) {
+            pathname = pathname.slice(0, -route.length);
+            break;
+        }
+    }
+    const cleanPath = pathname.replace(/\/$/, '');
     return origin + (cleanPath || '');
 }
 
@@ -847,12 +887,38 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         }
     }
 
-    // 1. Wait briefly for GIS to load if not already ready
+    const redirectUri = getOAuthRedirectUri();
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${encodeURIComponent(activeClientId)}&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `response_type=token&` +
+        `scope=${encodeURIComponent(OAUTH_SCOPE)}&` +
+        `include_granted_scopes=true&` +
+        `prompt=${encodeURIComponent(promptMode)}`;
+
+    // 1. Mobile & Native platforms: ALWAYS use direct standard OAuth redirect flow.
+    // GIS popup mode on mobile opens a new tab and gets stuck indefinitely on
+    // accounts.google.com/gsi/transformer because window.opener and window.close()
+    // are blocked or severed across mobile browser tabs and WebViews.
+    if (isMobileOrNative()) {
+        try {
+            localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
+            if (typeof window !== 'undefined') {
+                sessionStorage.setItem('splitit_oauth_return_route', window.location.pathname + window.location.search);
+            }
+        } catch {
+            // ignore
+        }
+        window.location.href = authUrl;
+        return;
+    }
+
+    // 2. Desktop browsers: Wait briefly for GIS to load if not already ready
     if (!window.google?.accounts?.oauth2?.initTokenClient) {
         await ensureGisLoaded(1500);
     }
 
-    // 2. Try Google Identity Services (GIS) token client popup mode
+    // 3. Desktop browsers: Try Google Identity Services (GIS) token client popup mode
     if (window.google?.accounts?.oauth2?.initTokenClient) {
         try {
             const tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -877,16 +943,7 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         }
     }
 
-    // 3. Fallback to standard OAuth 2.0 implicit flow via popup / redirect
-    const redirectUri = getOAuthRedirectUri();
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${encodeURIComponent(activeClientId)}&` +
-        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-        `response_type=token&` +
-        `scope=${encodeURIComponent(OAUTH_SCOPE)}&` +
-        `include_granted_scopes=true&` +
-        `prompt=${encodeURIComponent(promptMode)}`;
-
+    // 4. Desktop fallback to standard OAuth 2.0 implicit flow via popup / redirect
     // Attempt popup
     let popup = null;
     try {
@@ -900,9 +957,12 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
     }
 
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        // Popup was blocked or unsupported (e.g. Android WebView): navigate in place
+        // Popup was blocked: navigate in place
         try {
             localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
+            if (typeof window !== 'undefined') {
+                sessionStorage.setItem('splitit_oauth_return_route', window.location.pathname + window.location.search);
+            }
         } catch {
             // ignore
         }

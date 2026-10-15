@@ -191,12 +191,14 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
 
         registerPrintBridge();
+        configureWebViewForOAuth();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         registerPrintBridge();
+        configureWebViewForOAuth();
     }
 
     private void registerPrintBridge() {
@@ -210,6 +212,22 @@ public class MainActivity extends BridgeActivity {
             }
         } catch (Exception e) {
             Log.e(TAG, "Error attaching Android bridge to WebView", e);
+        }
+    }
+
+    private void configureWebViewForOAuth() {
+        try {
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView != null) {
+                android.webkit.WebSettings settings = webView.getSettings();
+                String ua = settings.getUserAgentString();
+                if (ua != null && ua.contains("; wv")) {
+                    settings.setUserAgentString(ua.replace("; wv", ""));
+                    Log.d(TAG, "Sanitized WebView user-agent for Google OAuth compatibility");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error configuring WebView user-agent for OAuth", e);
         }
     }
 }

@@ -12,6 +12,7 @@ import * as gdrive from '../services/googleDriveSync';
 import { mergeAppState } from '../services/googleDriveSync';
 import * as multiSync from '../services/multiUserSync';
 import { mergeGroupSyncPayload } from '../services/multiUserSync';
+import { App as CapApp } from '@capacitor/app';
 
 
 // CURRENCIES
@@ -25,133 +26,17 @@ const CURRENCIES = {
     CAD: { symbol: 'C$', name: 'Canadian Dollar' },
 };
 
-// INITIAL SEED DATA
-const seedUsers = [
-    { id: 'u_you', name: 'Athul', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
-    { id: 'u_adhish', name: 'Adhish', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
-    { id: 'u_suryakiran', name: 'Suryakiran M.', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
-    { id: 'u_vishal', name: 'Vishal', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
-    { id: 'u_shiburaj', name: 'Shiburaj', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
-    { id: 'u_swetha', name: 'Swetha', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
-    { id: 'u_bob', name: 'Bob', createdAt: '2026-10-01T08:00:00.000Z', updatedAt: '2026-10-01T08:00:00.000Z' },
-];
-
-const seedGroups = [
-    {
-        id: 'grp_iedc',
-        name: 'IEDC Summit 2026',
-        type: 'trip',
-        icon: 'plane',
-        color: '#10b981',
-        members: ['u_you', 'u_adhish', 'u_suryakiran', 'u_vishal'],
-        simplifyDebts: true,
-        createdAt: '2026-10-01T08:00:00.000Z',
-        updatedAt: '2026-10-01T08:00:00.000Z'
-    },
-    {
-        id: 'grp_infosys',
-        name: 'Infosys Exam',
-        type: 'project',
-        icon: 'clipboard',
-        color: '#f97316',
-        members: ['u_you', 'u_shiburaj', 'u_swetha', 'u_bob'],
-        simplifyDebts: true,
-        createdAt: '2026-10-02T10:00:00.000Z',
-        updatedAt: '2026-10-02T10:00:00.000Z'
-    }
-];
-
-const seedTransactions = [
-    {
-        id: 'tx_iedc_1',
-        type: 'EXPENSE',
-        groupId: 'grp_iedc',
-        description: 'Flight & Travel to Summit',
-        amount: 500.00,
-        date: '2026-10-01T09:30:00.000Z',
-        createdAt: '2026-10-01T09:30:00.000Z',
-        updatedAt: '2026-10-01T09:30:00.000Z',
-        payers: [{ userId: 'u_you', amount: 500.00 }],
-        splits: [
-            { userId: 'u_you', amount: 124.95 },
-            { userId: 'u_adhish', amount: 190.05 },
-            { userId: 'u_suryakiran', amount: 185.00 }
-        ]
-    },
-    {
-        id: 'tx_iedc_2',
-        type: 'EXPENSE',
-        groupId: 'grp_iedc',
-        description: 'Summit Registration Fee',
-        amount: 320.00,
-        date: '2026-10-01T14:15:00.000Z',
-        createdAt: '2026-10-01T14:15:00.000Z',
-        updatedAt: '2026-10-01T14:15:00.000Z',
-        payers: [{ userId: 'u_suryakiran', amount: 320.00 }],
-        splits: [{ userId: 'u_you', amount: 320.00 }]
-    },
-    {
-        id: 'tx_iedc_3',
-        type: 'EXPENSE',
-        groupId: 'grp_iedc',
-        description: 'Airport Coffee & Refreshments',
-        amount: 0.10,
-        date: '2026-10-02T07:45:00.000Z',
-        createdAt: '2026-10-02T07:45:00.000Z',
-        updatedAt: '2026-10-02T07:45:00.000Z',
-        payers: [{ userId: 'u_you', amount: 0.10 }],
-        splits: [
-            { userId: 'u_you', amount: 0.05 },
-            { userId: 'u_vishal', amount: 0.05 }
-        ]
-    },
-    {
-        id: 'tx_info_1',
-        type: 'EXPENSE',
-        groupId: 'grp_infosys',
-        description: 'Exam Preparation & Study Material',
-        amount: 6000.00,
-        date: '2026-10-02T11:00:00.000Z',
-        createdAt: '2026-10-02T11:00:00.000Z',
-        updatedAt: '2026-10-02T11:00:00.000Z',
-        payers: [{ userId: 'u_you', amount: 6000.00 }],
-        splits: [
-            { userId: 'u_you', amount: 279.35 },
-            { userId: 'u_shiburaj', amount: 5720.65 }
-        ]
-    },
-    {
-        id: 'tx_info_2',
-        type: 'EXPENSE',
-        groupId: 'grp_infosys',
-        description: 'Hostel Booking & Stay',
-        amount: 1156.00,
-        date: '2026-10-03T16:20:00.000Z',
-        createdAt: '2026-10-03T16:20:00.000Z',
-        updatedAt: '2026-10-03T16:20:00.000Z',
-        payers: [{ userId: 'u_swetha', amount: 1156.00 }],
-        splits: [{ userId: 'u_you', amount: 1156.00 }]
-    },
-    {
-        id: 'tx_info_3',
-        type: 'EXPENSE',
-        groupId: 'grp_infosys',
-        description: 'Exam Center Commute Cab',
-        amount: 4784.99,
-        date: '2026-10-04T08:00:00.000Z',
-        createdAt: '2026-10-04T08:00:00.000Z',
-        updatedAt: '2026-10-04T08:00:00.000Z',
-        payers: [{ userId: 'u_bob', amount: 4784.99 }],
-        splits: [{ userId: 'u_you', amount: 4784.99 }]
-    }
+// DEFAULT INITIAL USER (Clean slate for new users)
+const defaultUsers = [
+    { id: 'u_you', name: 'You', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
 ];
 
 // STABLE INITIAL STATE WITH DELETED IDS TOMBSTONES
 const initialState = {
-    users: seedUsers,
-    groups: seedGroups,
+    users: defaultUsers,
+    groups: [],
     currentUserId: 'u_you',
-    transactions: seedTransactions,
+    transactions: [],
     currency: 'INR',
     selectedGroupId: null, // null = All Groups, or 'grp_...' or 'non-group'
     deletedIds: {
@@ -359,15 +244,18 @@ function expenseReducer(state, action) {
         }
         case IMPORT_DATA: {
             const now = new Date().toISOString();
-            const importedUsers = (action.payload.users || []).map(u => ({
+            const importedUsers = (Array.isArray(action.payload.users) && action.payload.users.length > 0
+                ? action.payload.users
+                : (state.users && state.users.length > 0 ? state.users : defaultUsers)
+            ).map(u => ({
                 ...u,
                 updatedAt: u.updatedAt || u.createdAt || now
             }));
-            const importedGroups = (action.payload.groups || seedGroups).map(g => ({
+            const importedGroups = (Array.isArray(action.payload.groups) ? action.payload.groups : []).map(g => ({
                 ...g,
                 updatedAt: g.updatedAt || g.createdAt || now
             }));
-            const importedTransactions = (action.payload.transactions || []).map(t => ({
+            const importedTransactions = (Array.isArray(action.payload.transactions) ? action.payload.transactions : []).map(t => ({
                 ...t,
                 updatedAt: t.updatedAt || t.createdAt || now
             }));
@@ -519,35 +407,25 @@ export function ExpenseProvider({ children }) {
                     Array.isArray(parsed.transactions) &&
                     typeof parsed.currency === 'string'
                 ) {
-                    // Check if existing state was just the empty 2-user default without transactions
-                    const isOldDefault =
-                        parsed.users.length === 2 &&
-                        parsed.users[0]?.id === 'u1' &&
-                        parsed.transactions.length === 0 &&
-                        (!parsed.groups || parsed.groups.length === 0);
-
-                    if (isOldDefault) {
-                        return initialState;
-                    }
-
-                    const defaultTime = '2026-10-01T08:00:00.000Z';
-                    const users = parsed.users.map(u => ({
+                    const defaultTime = '2026-01-01T00:00:00.000Z';
+                    const users = (Array.isArray(parsed.users) && parsed.users.length > 0
+                        ? parsed.users
+                        : defaultUsers
+                    ).map(u => ({
                         ...u,
                         updatedAt: u.updatedAt || u.createdAt || defaultTime,
                         createdAt: u.createdAt || defaultTime
                     }));
 
-                    // Ensure groups exists with updatedAt
-                    const groups = (Array.isArray(parsed.groups) && parsed.groups.length > 0
-                        ? parsed.groups
-                        : seedGroups).map(g => ({
+                    // Ensure groups exists with updatedAt - NEVER inject sample groups
+                    const groups = (Array.isArray(parsed.groups) ? parsed.groups : []).map(g => ({
                         ...g,
                         updatedAt: g.updatedAt || g.createdAt || defaultTime,
                         createdAt: g.createdAt || defaultTime
                     }));
 
-                    // Ensure transactions have updatedAt
-                    const transactions = parsed.transactions.map(t => ({
+                    // Ensure transactions have updatedAt - NEVER inject sample transactions
+                    const transactions = (Array.isArray(parsed.transactions) ? parsed.transactions : []).map(t => ({
                         ...t,
                         updatedAt: t.updatedAt || t.createdAt || defaultTime,
                         createdAt: t.createdAt || defaultTime
@@ -705,7 +583,7 @@ export function ExpenseProvider({ children }) {
         }
     }, [disconnectDrive, syncNow]);
 
-    // Token reception listeners (Popup postMessage, Hash redirect, and Electron IPC)
+    // Token reception listeners (Popup postMessage, Hash redirect, Storage, Visibility, and Native deep links)
     useEffect(() => {
         // 0. Auto-restore session silently if previously connected
         if (!gdrive.isAuthenticated() && gdrive.isSessionPersisted()) {
@@ -718,48 +596,117 @@ export function ExpenseProvider({ children }) {
             });
         }
 
-        // 1. Check current URL hash (for OAuth redirect flow)
-        if (typeof window !== 'undefined' && window.location.hash) {
-            const tokenData = gdrive.parseTokenFromHash(window.location.hash);
+        // Unified processor for token hash fragments (#access_token=...&expires_in=...)
+        const processTokenHash = (hashPart) => {
+            if (!hashPart) return false;
+            const tokenData = gdrive.parseTokenFromHash(hashPart);
             if (tokenData?.accessToken) {
-                if (window.opener && window.opener !== window) {
+                // 1. Immediately persist token & fetch profile in active environment
+                gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
+                gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
+
+                // 2. If running inside a popup window, notify opener and attempt window.close()
+                if (typeof window !== 'undefined' && window.opener && window.opener !== window) {
                     try {
                         window.opener.postMessage({
                             type: 'SPLITIT_GDRIVE_AUTH_TOKEN',
-                            hash: window.location.hash
+                            hash: hashPart
                         }, '*');
-                        window.close();
-                        return;
                     } catch {
                         // ignore postMessage error
                     }
+                    try {
+                        window.close();
+                    } catch {
+                        // ignore window.close error (mobile browsers block window.close)
+                    }
                 }
-                // In main window redirect
-                gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
-                gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
-                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+
+                // 3. Clear URL hash and restore saved route if preserved in sessionStorage
+                if (typeof window !== 'undefined') {
+                    let targetUrl = window.location.pathname + window.location.search;
+                    try {
+                        const savedRoute = sessionStorage.getItem('splitit_oauth_return_route');
+                        if (savedRoute) {
+                            sessionStorage.removeItem('splitit_oauth_return_route');
+                            targetUrl = savedRoute;
+                        }
+                    } catch {
+                        // ignore
+                    }
+                    window.history.replaceState(null, '', targetUrl);
+                }
+
+                // 4. Update UI state and initiate sync
                 setSyncStatus('connected');
                 setSyncError(null);
                 setTimeout(() => syncNow(), 200);
+                return true;
             }
+            return false;
+        };
+
+        // 1. Check current URL hash (for OAuth redirect flow on mobile web and WebViews)
+        if (typeof window !== 'undefined' && window.location.hash) {
+            processTokenHash(window.location.hash);
         }
 
-        // 2. Cross-window postMessage listener (for popup mode)
+        // 2. Hashchange listener (if router or browser updates hash in-place)
+        const handleHashChange = () => {
+            if (typeof window !== 'undefined' && window.location.hash) {
+                processTokenHash(window.location.hash);
+            }
+        };
+        window.addEventListener('hashchange', handleHashChange);
+
+        // 3. Cross-window postMessage listener (for desktop popup mode)
         const handleMessage = (event) => {
             if (event.data?.type === 'SPLITIT_GDRIVE_AUTH_TOKEN' && event.data.hash) {
-                const tokenData = gdrive.parseTokenFromHash(event.data.hash);
-                if (tokenData?.accessToken) {
-                    gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
-                    gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
-                    setSyncStatus('connected');
-                    setSyncError(null);
-                    setTimeout(() => syncNow(), 200);
-                }
+                processTokenHash(event.data.hash);
             }
         };
         window.addEventListener('message', handleMessage);
 
-        // 3. Desktop native OAuth listeners (Tauri event listener & Electron IPC)
+        // 4. LocalStorage change listener (instant cross-tab authentication synchronization)
+        const handleStorage = (event) => {
+            if (event.key === gdrive.STORAGE_KEY_TOKEN) {
+                if (event.newValue) {
+                    setSyncStatus('connected');
+                    setSyncError(null);
+                    setTimeout(() => syncNow(), 200);
+                } else {
+                    setSyncStatus('disconnected');
+                }
+            }
+        };
+        window.addEventListener('storage', handleStorage);
+
+        // 5. Visibility / focus listener (resuming app tab after completing Google auth in another tab)
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+                if (gdrive.isAuthenticated()) {
+                    setSyncStatus('connected');
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // 6. Capacitor deep link listener (appUrlOpen) for Android/iOS native app containers
+        let capListenerPromise = null;
+        try {
+            capListenerPromise = CapApp.addListener('appUrlOpen', (data) => {
+                if (data?.url) {
+                    const hashIdx = data.url.indexOf('#');
+                    if (hashIdx !== -1) {
+                        processTokenHash(data.url.substring(hashIdx));
+                    }
+                }
+            });
+        } catch {
+            // Capacitor not available or running in pure web
+        }
+
+        // 7. Desktop native OAuth listeners (Tauri event listener & Electron IPC)
         let isMounted = true;
         let unsubDesktop = null;
         if (typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)) {
@@ -768,14 +715,7 @@ export function ExpenseProvider({ children }) {
                 return listen('splitit:oauth-token', (event) => {
                     const hashPart = typeof event.payload === 'string' ? event.payload : (event.payload?.hash || '');
                     if (hashPart) {
-                        const tokenData = gdrive.parseTokenFromHash(hashPart);
-                        if (tokenData?.accessToken) {
-                            gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
-                            gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
-                            setSyncStatus('connected');
-                            setSyncError(null);
-                            setTimeout(() => syncNow(), 200);
-                        }
+                        processTokenHash(hashPart);
                     }
                 });
             }).then((unsub) => {
@@ -789,21 +729,22 @@ export function ExpenseProvider({ children }) {
             });
         } else if (window.electronOAuth?.onTokenReceived) {
             unsubDesktop = window.electronOAuth.onTokenReceived((hashPart) => {
-                const tokenData = gdrive.parseTokenFromHash(hashPart);
-                if (tokenData?.accessToken) {
-                    gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
-                    gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
-                    setSyncStatus('connected');
-                    setSyncError(null);
-                    setTimeout(() => syncNow(), 200);
+                if (hashPart) {
+                    processTokenHash(hashPart);
                 }
             });
         }
 
         return () => {
             isMounted = false;
+            window.removeEventListener('hashchange', handleHashChange);
             window.removeEventListener('message', handleMessage);
+            window.removeEventListener('storage', handleStorage);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (typeof unsubDesktop === 'function') unsubDesktop();
+            if (capListenerPromise && typeof capListenerPromise.then === 'function') {
+                capListenerPromise.then(l => l.remove?.());
+            }
         };
     }, [syncNow]);
 
