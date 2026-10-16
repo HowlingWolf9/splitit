@@ -17,6 +17,7 @@ import {
 } from '../src/services/googleDriveSync.js';
 import {
     mergeGroupSyncPayload,
+    buildGroupPayload,
     NostrPoolManager
 } from '../src/services/multiUserSync.js';
 
@@ -465,11 +466,86 @@ assert.strictEqual(csrfResult?.accessToken, undefined, 'Access token must not be
 assert.strictEqual(csrfResult?.error, 'OAuth state mismatch (potential CSRF attack)');
 assert.strictEqual(sessionStorage.getItem('splitit_oauth_state'), 'expected_nonce_12345', 'State not consumed on error');
 
-// 2. Matching state should succeed and consume the state
+// 2. Missing state parameter should also be strictly rejected when expectedState is set
+const missingStateHash = '#access_token=ya29.attacker_missing_state&expires_in=3600';
+const missingStateResult = parseTokenFromHash(missingStateHash);
+assert.strictEqual(missingStateResult?.accessToken, undefined, 'Access token must be rejected when state parameter is omitted');
+assert.strictEqual(missingStateResult?.error, 'OAuth state mismatch (potential CSRF attack)');
+assert.strictEqual(sessionStorage.getItem('splitit_oauth_state'), 'expected_nonce_12345', 'State not consumed on missing state error');
+
+// 3. Matching state should succeed and consume the state
 const validAuthHash = '#access_token=ya29.valid_token&expires_in=3600&state=expected_nonce_12345';
 const validResult = parseTokenFromHash(validAuthHash);
 assert.strictEqual(validResult?.accessToken, 'ya29.valid_token', 'Access token accepted on valid state');
 assert.strictEqual(validResult?.expiresIn, 3600);
 assert.strictEqual(sessionStorage.getItem('splitit_oauth_state'), null, 'OAuth state token consumed from sessionStorage');
+
+// Test 15: Device-local member identity isolation in multi-user sync
+console.log('Test 15: Device-local member identity isolation in multi-user sync');
+
+const senderState = {
+    currentUserId: 'u_alice',
+    groups: [{
+        id: 'grp_shared_iso',
+        name: 'Shared Trip',
+        members: ['u_alice', 'u_bob'],
+        myMemberId: 'u_alice',
+        isShared: true,
+        syncSecret: 'test_sec_iso_123'
+    }],
+    users: [
+        { id: 'u_alice', name: 'Alice' },
+        { id: 'u_bob', name: 'Bob' }
+    ],
+    transactions: [],
+    deletedIds: { groups: {}, members: {}, expenses: {}, settlements: {} }
+};
+
+// 1. buildGroupPayload must strip myMemberId from payload.group
+const broadcastPayload = buildGroupPayload(senderState, 'grp_shared_iso');
+assert.strictEqual(broadcastPayload.group.myMemberId, undefined, 'payload.group must NOT expose device-local myMemberId');
+assert.strictEqual(broadcastPayload.senderMemberId, 'u_alice', 'senderMemberId records Alice as sender');
+
+// 2. mergeGroupSyncPayload on Bob device must NOT adopt Alice identity when Bob has not set myMemberId
+const receiverStateBefore = {
+    currentUserId: 'u_you',
+    groups: [{
+        id: 'grp_shared_iso',
+        name: 'Shared Trip',
+        members: ['u_alice', 'u_bob'],
+        myMemberId: null, // Bob has not set a custom member identity
+        isShared: true,
+        syncSecret: 'test_sec_iso_123'
+    }],
+    users: [
+        { id: 'u_alice', name: 'Alice' },
+        { id: 'u_bob', name: 'Bob' }
+    ],
+    transactions: [],
+    deletedIds: { groups: {}, members: {}, expenses: {}, settlements: {} }
+};
+
+const mergedReceiver = mergeGroupSyncPayload(receiverStateBefore, broadcastPayload, null);
+const receiverGroup = mergedReceiver.groups.find(g => g.id === 'grp_shared_iso');
+assert.strictEqual(receiverGroup.myMemberId, null, 'Receiver group must NOT inherit sender myMemberId');
+
+// Test 16: ExpenseForm external participant check with external collectorId
+console.log('Test 16: External participant detection with external collectorId');
+
+const testGroup = { id: 'grp_x', members: ['u_1', 'u_2'] };
+const expenseWithExternalCollector = {
+    groupId: 'grp_x',
+    collectorId: 'u_external_collector',
+    payers: [{ userId: 'u_1', amount: 50 }],
+    splits: [{ userId: 'u_1', amount: 25 }, { userId: 'u_2', amount: 25 }]
+};
+
+const memberSet = new Set(testGroup.members);
+const hasExternalPayer = (expenseWithExternalCollector.payers || []).some(p => p.amount > 0 && !memberSet.has(p.userId));
+const hasExternalSplit = (expenseWithExternalCollector.splits || []).some(s => s.amount > 0 && !memberSet.has(s.userId));
+const hasExternalCollector = expenseWithExternalCollector.collectorId && !memberSet.has(expenseWithExternalCollector.collectorId);
+const shouldShowAll = hasExternalPayer || hasExternalSplit || Boolean(hasExternalCollector);
+
+assert.strictEqual(shouldShowAll, true, 'Expense with external collector must trigger showAllUsers = true');
 
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');

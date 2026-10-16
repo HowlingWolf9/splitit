@@ -349,12 +349,14 @@ export function buildGroupPayload(state, groupId, senderMemberId = null) {
         scopedDeletedIds.settlements[id] = ts;
     });
 
+    const { myMemberId: _unused, ...sharedGroup } = group;
+
     return {
         version: 1,
         groupId,
         senderMemberId: senderMemberId || group.myMemberId || state.currentUserId,
         group: {
-            ...group,
+            ...sharedGroup,
             isShared: true
         },
         members: groupMembers,
@@ -428,7 +430,7 @@ export function mergeGroupSyncPayload(currentState, payload, myMemberId = null) 
             ...baseGroup,
             members: filteredMembers,
             // Preserve local myMemberId unless specifically chosen
-            myMemberId: myMemberId || localG.myMemberId || baseGroup.myMemberId || null,
+            myMemberId: myMemberId || localG.myMemberId || null,
             syncSecret: localG.syncSecret || remoteGroup.syncSecret || payload.syncSecret || null,
             isShared: true,
             updatedAt: groupUpdatedAt
@@ -454,7 +456,7 @@ export function mergeGroupSyncPayload(currentState, payload, myMemberId = null) 
         mergedGroup = {
             ...remoteGroup,
             members: filteredMembers,
-            myMemberId: myMemberId || remoteGroup.myMemberId || null,
+            myMemberId: myMemberId || null,
             syncSecret: remoteGroup.syncSecret || payload.syncSecret || null,
             isShared: true,
             createdAt: remoteGroup.createdAt || now,
@@ -487,7 +489,7 @@ export function mergeGroupSyncPayload(currentState, payload, myMemberId = null) 
 
     // Remove users tombstoned by remote if tombstone is newer/equal to user updatedAt
     Array.from(userMap.keys()).forEach(userId => {
-        if (userId === currentState.currentUserId) return;
+        if (userId === currentState.currentUserId || (myMemberId && userId === myMemberId)) return;
         const tomb = mergedDeletedIds.members[userId];
         if (tomb) {
             const u = userMap.get(userId);

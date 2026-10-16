@@ -1075,14 +1075,14 @@ export function ExpenseProvider({ children }) {
     }, []);
 
     const syncGroupNow = useCallback(async (groupId) => {
-        const group = (state.groups || []).find(g => g.id === groupId);
+        const group = (stateRef.current.groups || []).find(g => g.id === groupId);
         if (!group || !group.syncSecret) return { success: false, error: 'Group is not shared' };
 
         setGroupSyncStatus(groupId, { status: 'syncing', error: null });
 
         try {
             // 1. Broadcast our latest local group data
-            await multiSync.publishGroupUpdate(state, groupId);
+            await multiSync.publishGroupUpdate(stateRef.current, groupId);
 
             // 2. Fetch latest snapshot from relays
             const fetchRes = await multiSync.fetchGroupStateOnce(groupId, group.syncSecret);
@@ -1106,9 +1106,9 @@ export function ExpenseProvider({ children }) {
             setGroupSyncStatus(groupId, { status: 'offline', error: err.message });
             return { success: false, error: err.message };
         }
-    }, [state, setGroupSyncStatus]);
+    }, [setGroupSyncStatus]);
 
-    const joinSharedGroup = useCallback(async (inviteCode, myMemberId = null, prefetchedPayload = null) => {
+    const joinSharedGroup = useCallback(async (inviteCode, myMemberId = null, prefetchedPayload = null, newMemberObj = null) => {
         const parsed = multiSync.parseInviteCode(inviteCode);
         if (!parsed) {
             return { success: false, error: 'Invalid invite code format. Must start with SPLIT-1-...' };
@@ -1126,6 +1126,13 @@ export function ExpenseProvider({ children }) {
                     return { success: false, error: fetchRes.error || 'Could not fetch group data from relays.' };
                 }
                 payload = fetchRes.payload;
+            }
+
+            if (newMemberObj && !(stateRef.current.users || []).some(u => u.id === newMemberObj.id)) {
+                stateRef.current = {
+                    ...stateRef.current,
+                    users: [...(stateRef.current.users || []), newMemberObj]
+                };
             }
 
             isApplyingRemoteGroupSyncRef.current = true;
@@ -1173,6 +1180,12 @@ export function ExpenseProvider({ children }) {
 
     const addUser = (name) => {
         const id = generateId();
+        const now = new Date().toISOString();
+        const newUser = { id, name, createdAt: now, updatedAt: now };
+        stateRef.current = {
+            ...stateRef.current,
+            users: [...(stateRef.current.users || []), newUser]
+        };
         dispatch({
             type: ADD_USER,
             payload: { id, name }
@@ -1200,22 +1213,29 @@ export function ExpenseProvider({ children }) {
         myMemberId = null
     }) => {
         const id = 'grp_' + generateId();
+        const now = new Date().toISOString();
+        const newGroup = {
+            id,
+            name: name.trim(),
+            type,
+            icon,
+            color,
+            members,
+            simplifyDebts,
+            defaultCollectorId: defaultCollectorId || null,
+            isShared: !!isShared,
+            syncSecret: syncSecret || null,
+            myMemberId: myMemberId || null,
+            createdAt: now,
+            updatedAt: now
+        };
+        stateRef.current = {
+            ...stateRef.current,
+            groups: [...(stateRef.current.groups || []), newGroup]
+        };
         dispatch({
             type: ADD_GROUP,
-            payload: {
-                id,
-                name,
-                type,
-                icon,
-                color,
-                members,
-                simplifyDebts,
-                defaultCollectorId: defaultCollectorId || null,
-                isShared: !!isShared,
-                syncSecret: syncSecret || null,
-                myMemberId: myMemberId || null,
-                createdAt: new Date().toISOString()
-            }
+            payload: newGroup
         });
         return id;
     };

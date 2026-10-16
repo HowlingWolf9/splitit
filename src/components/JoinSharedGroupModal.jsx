@@ -102,6 +102,7 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
 
         try {
             let memberIdToUse = selectedMemberId;
+            let newMemberObj = null;
 
             // If user specified a new name
             if (isNewMember) {
@@ -113,9 +114,15 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                 }
                 const newId = addUser(trimmed);
                 memberIdToUse = newId;
+                newMemberObj = {
+                    id: newId,
+                    name: trimmed,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
             }
 
-            const joinRes = await joinSharedGroup(inviteCodeInput.trim(), memberIdToUse, fetchedData);
+            const joinRes = await joinSharedGroup(inviteCodeInput.trim(), memberIdToUse, fetchedData, newMemberObj);
             if (joinRes.success) {
                 if (onSuccess) onSuccess(joinRes.groupId);
             } else {

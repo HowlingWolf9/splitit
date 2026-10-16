@@ -190,7 +190,8 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
         const memberSet = new Set(grp.members || []);
         const hasExternalPayer = (expenseToEdit.payers || []).some(p => p.amount > 0 && !memberSet.has(p.userId));
         const hasExternalSplit = (expenseToEdit.splits || []).some(s => s.amount > 0 && !memberSet.has(s.userId));
-        return hasExternalPayer || hasExternalSplit;
+        const hasExternalCollector = expenseToEdit.collectorId && !memberSet.has(expenseToEdit.collectorId);
+        return hasExternalPayer || hasExternalSplit || Boolean(hasExternalCollector);
     });
 
     const [desc, setDesc] = useState(() => expenseToEdit?.description || '');
@@ -265,7 +266,8 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
             if (grp) {
                 const memberSet = new Set(grp.members || []);
                 const hasExternal = (expenseToEdit.payers || []).some(p => p.amount > 0 && !memberSet.has(p.userId)) ||
-                                    (expenseToEdit.splits || []).some(s => s.amount > 0 && !memberSet.has(s.userId));
+                                    (expenseToEdit.splits || []).some(s => s.amount > 0 && !memberSet.has(s.userId)) ||
+                                    (expenseToEdit.collectorId && !memberSet.has(expenseToEdit.collectorId));
                 if (hasExternal) {
                     setShowAllUsers(true);
                 }

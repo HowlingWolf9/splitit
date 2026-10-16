@@ -136,6 +136,7 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                 defaultCollectorId: defaultCollectorId || null,
                 isShared: !!enableLiveSync,
                 syncSecret: secret,
+                myMemberId: enableLiveSync ? (state.currentUserId || 'u_you') : null,
             };
             const newGroupId = addGroup(groupData);
             if (enableLiveSync) {

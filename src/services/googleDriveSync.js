@@ -673,12 +673,12 @@ export function parseTokenFromHash(input) {
         // ignore
     }
 
-    if (expectedState && returnedState && returnedState !== expectedState) {
-        return {
-            error: 'OAuth state mismatch (potential CSRF attack)'
-        };
-    }
-    if (expectedState && returnedState && returnedState === expectedState) {
+    if (expectedState) {
+        if (!returnedState || returnedState !== expectedState) {
+            return {
+                error: 'OAuth state mismatch (potential CSRF attack)'
+            };
+        }
         try {
             if (typeof window !== 'undefined') {
                 sessionStorage.removeItem('splitit_oauth_state');
