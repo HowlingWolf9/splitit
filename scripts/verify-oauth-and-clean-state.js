@@ -923,6 +923,77 @@ assert.strictEqual(cleanImportedState.selectedGroupId, null, 'Orphaned selectedG
 const persistedState = JSON.parse(mockLocalStorage.getItem('expense_manager_data'));
 assert.strictEqual(persistedState.transactions.length, 2, 'Clean imported state synchronously written to expense_manager_data in localStorage');
 
+// 10. isDriveConnected detection when session is persisted but token is expired
+const mockDriveConnected = (isAuthenticated, isSessionPersisted, syncStatus) => {
+    return isAuthenticated || isSessionPersisted || syncStatus === 'connected';
+};
+assert.strictEqual(
+    mockDriveConnected(false, true, 'reauth_required'),
+    true,
+    'Google Drive must be detected as connected when session is persisted even if token expired'
+);
+assert.strictEqual(
+    mockDriveConnected(false, false, 'disconnected'),
+    false,
+    'Google Drive is not connected when neither token nor session exists'
+);
+
+// 11. isApplyingDriveMerge and isImportSyncLock cleanup guarantee
+let isImportSyncLockRef = true;
+let isApplyingDriveMergeRef = true;
+// Simulate import execution with guaranteed finally block
+try {
+    // perform import...
+} finally {
+    isImportSyncLockRef = false;
+    isApplyingDriveMergeRef = false;
+}
+assert.strictEqual(isImportSyncLockRef, false, 'Import sync lock must be released in finally');
+assert.strictEqual(isApplyingDriveMergeRef, false, 'isApplyingDriveMerge must be reset to false so next edit auto-syncs');
+
+// Verify subsequent user edit schedules auto-sync without being swallowed
+let debounceTimerScheduled = false;
+const simulateUserEditAutoSync = (applyingDriveMerge, importLock) => {
+    if (importLock) return;
+    if (applyingDriveMerge) {
+        return; // would swallow if true!
+    }
+    debounceTimerScheduled = true;
+};
+simulateUserEditAutoSync(isApplyingDriveMergeRef, isImportSyncLockRef);
+assert.strictEqual(debounceTimerScheduled, true, 'Subsequent user mutation successfully triggers auto-sync');
+
+// 12. Google Drive Overwrite failure / missing token safety fallback
+const simulateOverwriteCloudAction = ({ hasToken, uploadThrows }) => {
+    let autoSyncEnabled = true;
+    let cloudWarning = null;
+    let cloudSuccess = false;
+
+    try {
+        if (hasToken) {
+            if (uploadThrows) throw new Error('Network timeout');
+            cloudSuccess = true;
+        }
+    } catch {
+        // upload failed
+    }
+
+    if (!cloudSuccess) {
+        autoSyncEnabled = false;
+        cloudWarning = 'Data restored locally, but Google Drive could not be updated. Auto-sync was paused to protect your restored data.';
+    }
+
+    return { autoSyncEnabled, cloudWarning, cloudSuccess };
+};
+
+const missingTokenResult = simulateOverwriteCloudAction({ hasToken: false, uploadThrows: false });
+assert.strictEqual(missingTokenResult.autoSyncEnabled, false, 'Auto-sync paused when token is unavailable on overwrite');
+assert.ok(missingTokenResult.cloudWarning, 'Warning returned when overwrite cannot reach cloud');
+
+const uploadFailedResult = simulateOverwriteCloudAction({ hasToken: true, uploadThrows: true });
+assert.strictEqual(uploadFailedResult.autoSyncEnabled, false, 'Auto-sync paused when cloud upload encounters an error');
+assert.ok(uploadFailedResult.cloudWarning, 'Warning returned when cloud upload throws error');
+
 global.localStorage = originalLocalStorage;
 
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');

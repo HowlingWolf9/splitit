@@ -120,7 +120,7 @@ export default function ImportBackupModal({
     const currentCurrency = state.currency || 'INR';
 
     // Cloud connection status (active token or authenticated session)
-    const isDriveConnected = gdrive.isAuthenticated() || syncStatus === 'connected';
+    const isDriveConnected = gdrive.isAuthenticated() || gdrive.isSessionPersisted() || syncStatus === 'connected';
 
     // Form configuration state
     const [mode, setMode] = useState('REPLACE'); // 'REPLACE' | 'MERGE'
@@ -562,7 +562,7 @@ export default function ImportBackupModal({
                                     background: 'hsl(var(--color-success) / 0.15)',
                                     color: 'hsl(var(--color-success))'
                                 }}>
-                                    Connected
+                                    {gdrive.isAuthenticated() || syncStatus === 'connected' ? 'Connected' : 'Session Saved'}
                                 </span>
                             </div>
 

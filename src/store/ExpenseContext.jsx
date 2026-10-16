@@ -216,7 +216,7 @@ function expenseReducer(state, action) {
                 (Array.isArray(resolvedGroups) && resolvedGroups.some(g => g.id === targetGroupId))
             ) ? targetGroupId : null;
 
-            return {
+            const newState = {
                 ...state,
                 users: payload.users || state.users,
                 groups: resolvedGroups,
@@ -226,6 +226,9 @@ function expenseReducer(state, action) {
                 currentUserId: payload.currentUserId || state.currentUserId,
                 selectedGroupId: validSelectedGroupId
             };
+            delete newState.expenses;
+            delete newState.settlements;
+            return newState;
         }
         case MERGE_GROUP_SYNC_DATA: {
             return mergeGroupSyncPayload(state, action.payload, action.myMemberId);
@@ -1681,7 +1684,6 @@ export function ExpenseProvider({ children }) {
                     const dateStr = new Date().toISOString().split('T')[0];
                     const safetyRes = await exportBackupJson(currentSnapshot, `splitit-safety-backup-${dateStr}.json`);
                     if (safetyRes?.canceled) {
-                        isImportSyncLockRef.current = false;
                         return {
                             success: false,
                             canceled: true,
@@ -1690,7 +1692,6 @@ export function ExpenseProvider({ children }) {
                     }
                 } catch (e) {
                     console.warn('Safety backup file export failed:', e);
-                    isImportSyncLockRef.current = false;
                     return {
                         success: false,
                         error: 'Failed to create safety backup file: ' + (e.message || 'Export error')
@@ -1746,11 +1747,16 @@ export function ExpenseProvider({ children }) {
                 ? rawPayload.currency.trim()
                 : (state.currency || 'INR');
 
-            const normalizedData = {
-                ...rawPayload,
-                transactions: normalizedTransactions,
+            const targetGroupId = rawPayload.selectedGroupId !== undefined ? rawPayload.selectedGroupId : state.selectedGroupId;
+            const validSelectedGroupId = (
+                targetGroupId === 'non-group' ||
+                normalizedGroups.some(g => g.id === targetGroupId)
+            ) ? targetGroupId : null;
+
+            const cleanNormalizedData = {
                 users: normalizedUsers,
                 groups: normalizedGroups,
+                transactions: normalizedTransactions,
                 deletedIds: {
                     groups: {},
                     members: {},
@@ -1759,34 +1765,28 @@ export function ExpenseProvider({ children }) {
                     ...(rawPayload.deletedIds || {})
                 },
                 currency: effectiveCurrency,
-                currentUserId: targetUserId || rawPayload.currentUserId || (normalizedUsers[0]?.id || state.currentUserId)
+                currentUserId: targetUserId || rawPayload.currentUserId || (normalizedUsers[0]?.id || state.currentUserId),
+                selectedGroupId: validSelectedGroupId
             };
 
-            // Remove legacy keys
-            delete normalizedData.expenses;
-            delete normalizedData.settlements;
-
-            let resultingState = normalizedData;
+            let resultingState = cleanNormalizedData;
 
             if (mode === 'MERGE') {
-                const merged = gdrive.mergeAppState(state, normalizedData);
+                const merged = gdrive.mergeAppState(state, cleanNormalizedData);
                 if (targetUserId) {
                     merged.currentUserId = targetUserId;
                 }
+                delete merged.expenses;
+                delete merged.settlements;
                 resultingState = merged;
                 dispatch({ type: MERGE_SYNCED_DATA, payload: merged });
-                if (targetUserId) {
-                    dispatch({ type: SET_CURRENT_USER, payload: targetUserId });
-                }
             } else {
                 // REPLACE mode
-                dispatch({ type: IMPORT_DATA, payload: normalizedData });
-                if (targetUserId) {
-                    dispatch({ type: SET_CURRENT_USER, payload: targetUserId });
-                }
+                resultingState = cleanNormalizedData;
+                dispatch({ type: IMPORT_DATA, payload: cleanNormalizedData });
             }
 
-            // 3. Cloud sync action (when authenticated with Google Drive)
+            // 3. Cloud sync action (when authenticated or session persisted with Google Drive)
             const isDriveConnected = gdrive.isAuthenticated() || gdrive.isSessionPersisted();
             if (isDriveConnected) {
                 if (cloudAction === 'PAUSE') {
@@ -1794,10 +1794,10 @@ export function ExpenseProvider({ children }) {
                         clearTimeout(syncTimerRef.current);
                         syncTimerRef.current = null;
                     }
-                    isApplyingDriveMergeRef.current = true;
                     setIsAutoSyncEnabled(false);
-                    isImportSyncLockRef.current = false;
+                    lastSyncedHashRef.current = gdrive.computeStateHash(resultingState);
                 } else if (cloudAction === 'OVERWRITE') {
+                    let cloudSuccess = false;
                     try {
                         let token = gdrive.getAccessToken();
                         if (!token && gdrive.isSessionPersisted()) {
@@ -1830,7 +1830,6 @@ export function ExpenseProvider({ children }) {
                                 data: resultingState
                             };
 
-                            isApplyingDriveMergeRef.current = true;
                             const uploadRes = await gdrive.uploadAppData(token, payload, fileId);
                             if (uploadRes?.id && !fileId) {
                                 try {
@@ -1842,32 +1841,46 @@ export function ExpenseProvider({ children }) {
                             gdrive.setLastSynced(now);
                             setLastSyncedAt(now);
                             lastSyncedHashRef.current = gdrive.computeStateHash(resultingState);
+                            cloudSuccess = true;
                         }
                     } catch (cloudErr) {
                         console.error('Failed to overwrite Google Drive cloud data:', cloudErr);
-                    } finally {
-                        isImportSyncLockRef.current = false;
+                    }
+
+                    if (!cloudSuccess) {
+                        // Pause auto-sync and align hash so stale cloud records don't overwrite restored local data
+                        if (syncTimerRef.current) {
+                            clearTimeout(syncTimerRef.current);
+                            syncTimerRef.current = null;
+                        }
+                        setIsAutoSyncEnabled(false);
+                        lastSyncedHashRef.current = gdrive.computeStateHash(resultingState);
+                        return {
+                            success: true,
+                            count: normalizedTransactions.length,
+                            cloudWarning: 'Data restored locally, but Google Drive could not be updated. Auto-sync was paused to protect your restored data.'
+                        };
                     }
                 } else if (cloudAction === 'MERGE') {
-                    isImportSyncLockRef.current = false;
                     setTimeout(() => {
                         syncNow();
                     }, 500);
-                } else {
-                    isImportSyncLockRef.current = false;
                 }
             } else {
-                isImportSyncLockRef.current = false;
+                lastSyncedHashRef.current = gdrive.computeStateHash(resultingState);
             }
 
             return { success: true, count: normalizedTransactions.length };
         } catch (error) {
             console.error('importBackupAdvanced error:', error);
-            isImportSyncLockRef.current = false;
             return {
                 success: false,
                 error: error.message || 'Failed to import backup'
             };
+        } finally {
+            // Always guarantee sync lock and drive merge flags are cleanly released
+            isImportSyncLockRef.current = false;
+            isApplyingDriveMergeRef.current = false;
         }
     }, [state, exportData, setIsAutoSyncEnabled, syncNow]);
 

@@ -128,7 +128,11 @@ export default function Settings() {
         const result = await importBackupAdvanced(options);
         if (result.success) {
             setPendingBackup(null);
-            showMessage('success', options.mode === 'MERGE' ? 'Data merged successfully!' : 'Backup restored successfully!');
+            if (result.cloudWarning) {
+                showMessage('warning', result.cloudWarning);
+            } else {
+                showMessage('success', options.mode === 'MERGE' ? 'Data merged successfully!' : 'Backup restored successfully!');
+            }
         } else if (result.canceled) {
             throw new Error(result.error || 'Safety backup was canceled');
         } else {
@@ -294,11 +298,21 @@ export default function Settings() {
                         borderRadius: 'var(--radius-md)',
                         backgroundColor: message.type === 'success'
                             ? 'hsl(var(--color-success-soft))'
-                            : 'hsl(var(--color-danger-soft))',
+                            : message.type === 'warning'
+                                ? 'hsl(var(--color-warning-soft))'
+                                : 'hsl(var(--color-danger-soft))',
                         color: message.type === 'success'
                             ? 'hsl(var(--color-success))'
-                            : 'hsl(var(--color-danger-text))',
-                        border: `1px solid ${message.type === 'success' ? 'hsl(var(--color-success) / 0.3)' : 'hsl(var(--color-danger) / 0.3)'}`,
+                            : message.type === 'warning'
+                                ? 'hsl(var(--color-warning))'
+                                : 'hsl(var(--color-danger-text))',
+                        border: `1px solid ${
+                            message.type === 'success'
+                                ? 'hsl(var(--color-success) / 0.3)'
+                                : message.type === 'warning'
+                                    ? 'hsl(var(--color-warning) / 0.3)'
+                                    : 'hsl(var(--color-danger) / 0.3)'
+                        }`,
                         fontSize: '0.86rem',
                         fontWeight: 600,
                         display: 'flex',
