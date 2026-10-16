@@ -1075,6 +1075,41 @@ export async function syncWithDrive(localState, mergeFn) {
  * - Automatic fallback to standard OAuth 2.0 redirect flow on mobile WebViews
  */
 export async function initiateGoogleAuth({ clientId = getClientId(), onToken, onError, promptMode = 'select_account' } = {}) {
+    // 1. Native Capacitor environment: Native Google Play Services 1-tap account picker
+    // Bypasses browser redirects entirely and uses package SHA-1 certificate authentication
+    if (isCapacitorNative()) {
+        try {
+            const NativeGoogleAuth = getNativeGoogleAuth();
+            const res = await NativeGoogleAuth.signIn();
+            if (res?.accessToken) {
+                setAccessToken(res.accessToken, res.expiresIn || 3600);
+                if (res.email) {
+                    try {
+                        localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify({
+                            email: res.email,
+                            name: res.name || ''
+                        }));
+                    } catch {
+                        // ignore
+                    }
+                }
+                onToken?.(res.accessToken, res.expiresIn || 3600);
+                return;
+            } else {
+                return;
+            }
+        } catch (nativeErr) {
+            const errMsg = nativeErr?.message || String(nativeErr || '');
+            if (errMsg.toLowerCase().includes('cancel')) {
+                // User dismissed account bottom-sheet or pressed back - clean return without error toast
+                return;
+            }
+            console.error('Native Google Sign-In error:', nativeErr);
+            onError?.(nativeErr);
+            return;
+        }
+    }
+
     const activeClientId = sanitizeClientId(clientId || getClientId());
 
     if (!activeClientId) {
@@ -1133,36 +1168,6 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         `include_granted_scopes=true&` +
         `prompt=${encodeURIComponent(promptMode)}` +
         stateParam;
-
-    // 1. Native Capacitor environment: Native Google Play Services 1-tap account picker
-    if (isCapacitorNative()) {
-        try {
-            const NativeGoogleAuth = getNativeGoogleAuth();
-            const res = await NativeGoogleAuth.signIn();
-            if (res?.accessToken) {
-                setAccessToken(res.accessToken, res.expiresIn || 3600);
-                if (res.email) {
-                    try {
-                        localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify({
-                            email: res.email,
-                            name: res.name || ''
-                        }));
-                    } catch {
-                        // ignore
-                    }
-                }
-                onToken?.(res.accessToken, res.expiresIn || 3600);
-                return;
-            } else {
-                onError?.(new Error('Sign-in cancelled'));
-                return;
-            }
-        } catch (nativeErr) {
-            console.error('Native Google Sign-In error:', nativeErr);
-            onError?.(nativeErr);
-            return;
-        }
-    }
 
     // 2. Mobile web browsers: Use direct standard OAuth redirect flow.
     // GIS popup mode on mobile opens a new tab and gets stuck indefinitely on

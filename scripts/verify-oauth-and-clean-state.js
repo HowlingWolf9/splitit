@@ -312,6 +312,26 @@ assert.strictEqual(restored, true, 'Silent restore succeeded via native plugin')
 assert.strictEqual(nativeMethodCalled, 'trySilentSignIn', 'trySilentRestore called NativeGoogleAuthPlugin.trySilentSignIn');
 assert.strictEqual(getAccessToken(), 'ya29.silent_test_token', 'Silent token saved');
 
+// Test user cancellation handling on native
+Capacitor.nativePromise = async (plugin, method) => {
+    nativeMethodCalled = method;
+    throw new Error('Google sign-in cancelled by user');
+};
+let cancelErrorReported = false;
+await initiateGoogleAuth({
+    onError: () => { cancelErrorReported = true; }
+});
+assert.strictEqual(cancelErrorReported, false, 'Cancellation should not trigger onError failure banner');
+
+// Test clearAuth on native invokes signOut
+Capacitor.nativePromise = async (plugin, method) => {
+    nativeMethodCalled = method;
+    return {};
+};
+clearAuth();
+await new Promise(r => setTimeout(r, 10));
+assert.strictEqual(nativeMethodCalled, 'signOut', 'clearAuth on native invokes signOut');
+
 delete global.androidBridge;
 delete global.window.androidBridge;
 delete global.window.Capacitor;
