@@ -486,6 +486,7 @@ export function ExpenseProvider({ children }) {
     const isSyncingRef = useRef(false);
     const syncTimerRef = useRef(null);
     const isInitialRender = useRef(true);
+    const hasMountedLaunchRef = useRef(false);
     const lastSyncedHashRef = useRef(gdrive.computeStateHash(state));
     const stateRef = useRef(state);
     stateRef.current = state;
@@ -517,9 +518,10 @@ export function ExpenseProvider({ children }) {
         isSyncingRef.current = true;
 
         try {
-            const result = await gdrive.syncWithDrive(state, mergeAppState);
+            const currentState = stateRef.current;
+            const result = await gdrive.syncWithDrive(currentState, mergeAppState);
             if (result.success) {
-                const currentHash = gdrive.computeStateHash(state);
+                const currentHash = gdrive.computeStateHash(stateRef.current);
                 const mergedHash = gdrive.computeStateHash(result.mergedState);
 
                 // Loop breaking guard: only dispatch if data actually differs!
@@ -556,7 +558,7 @@ export function ExpenseProvider({ children }) {
         } finally {
             isSyncingRef.current = false;
         }
-    }, [state]);
+    }, []);
 
     const connectDrive = useCallback(() => {
         setSyncError(null);
@@ -622,7 +624,7 @@ export function ExpenseProvider({ children }) {
                 setSyncError(tokenData.error);
                 setSyncStatus('error');
                 if (typeof window !== 'undefined') {
-                    let targetUrl = window.location.pathname + window.location.search;
+                    let targetUrl = window.location.pathname;
                     try {
                         const savedRoute = sessionStorage.getItem('splitit_oauth_return_route');
                         if (savedRoute) {
@@ -667,7 +669,7 @@ export function ExpenseProvider({ children }) {
 
                 // 3. Clear URL hash and restore saved route if preserved in sessionStorage
                 if (typeof window !== 'undefined') {
-                    let targetUrl = window.location.pathname + window.location.search;
+                    let targetUrl = window.location.pathname;
                     try {
                         const savedRoute = sessionStorage.getItem('splitit_oauth_return_route');
                         if (savedRoute) {
@@ -690,9 +692,9 @@ export function ExpenseProvider({ children }) {
             return false;
         };
 
-        // 1. Check current URL hash (for OAuth redirect flow on mobile web and WebViews)
-        if (typeof window !== 'undefined' && window.location.hash) {
-            processTokenHash(window.location.hash);
+        // 1. Check current URL hash or query (for OAuth redirect flow on mobile web and WebViews)
+        if (typeof window !== 'undefined' && (window.location.hash || window.location.search)) {
+            processTokenHash(window.location.href);
         }
 
         // 2. Hashchange listener (if router or browser updates hash in-place)
@@ -746,15 +748,7 @@ export function ExpenseProvider({ children }) {
                     } catch {
                         // ignore if already closed
                     }
-                    const hashIdx = data.url.indexOf('#');
-                    if (hashIdx !== -1) {
-                        processTokenHash(data.url.substring(hashIdx));
-                    } else {
-                        const qIdx = data.url.indexOf('?');
-                        if (qIdx !== -1) {
-                            processTokenHash(data.url.substring(qIdx));
-                        }
-                    }
+                    processTokenHash(data.url);
                 }
             });
         } catch {
@@ -812,7 +806,7 @@ export function ExpenseProvider({ children }) {
                     syncNow();
                 }
             } else {
-                setSyncStatus('disconnected');
+                setSyncStatus(gdrive.isSessionPersisted() ? 'reauth_required' : 'disconnected');
             }
         };
 
@@ -843,17 +837,21 @@ export function ExpenseProvider({ children }) {
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        // Trigger on initial startup
-        const launchTimer = setTimeout(() => {
-            if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine) {
-                syncNow();
-            }
-        }, 1200);
+        // Trigger once on initial startup
+        let launchTimer = null;
+        if (!hasMountedLaunchRef.current) {
+            hasMountedLaunchRef.current = true;
+            launchTimer = setTimeout(() => {
+                if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine) {
+                    syncNow();
+                }
+            }, 1200);
+        }
 
         return () => {
             window.removeEventListener('focus', handleFocus);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            clearTimeout(launchTimer);
+            if (launchTimer) clearTimeout(launchTimer);
         };
     }, [isAutoSyncEnabled, syncNow]);
 

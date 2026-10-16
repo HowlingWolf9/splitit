@@ -47,7 +47,9 @@ export function computeStateHash(state) {
         u: users.map(u => ({
             id: u.id || '',
             u: u.updatedAt || u.createdAt || '',
-            n: u.name || ''
+            n: u.name || '',
+            e: u.email || '',
+            p: u.phone || ''
         })).sort((a, b) => (a.id || '').localeCompare(b.id || '')),
 
         g: groups.map(g => ({
@@ -61,7 +63,15 @@ export function computeStateHash(state) {
             id: t.id || '',
             u: t.updatedAt || t.createdAt || '',
             a: t.amount ?? '',
-            d: t.date || ''
+            d: t.date || '',
+            desc: t.description || '',
+            cat: t.category || '',
+            type: t.type || 'EXPENSE',
+            p: t.payerId || '',
+            payers: t.payers ? Object.keys(t.payers).sort().map(k => `${k}:${t.payers[k]}`).join(',') : '',
+            sm: t.splitMode || '',
+            splits: t.splits ? Object.keys(t.splits).sort().map(k => `${k}:${t.splits[k]}`).join(',') : '',
+            g: t.groupId || ''
         })).sort((a, b) => (a.id || '').localeCompare(b.id || '')),
 
         d: {
@@ -624,14 +634,34 @@ export function setLastSynced(isoTimestamp = new Date().toISOString()) {
 /**
  * Parse OAuth access token and expiration from URL hash (#access_token=...&expires_in=...)
  */
-export function parseTokenFromHash(hash) {
-    if (!hash) return null;
-    const cleanHash = hash.startsWith('#') ? hash.substring(1) : hash;
-    const params = new URLSearchParams(cleanHash);
-    const accessToken = params.get('access_token');
-    const expiresIn = params.get('expires_in');
-    const error = params.get('error');
-    const errorDescription = params.get('error_description');
+export function parseTokenFromHash(input) {
+    if (!input || typeof input !== 'string') return null;
+
+    let searchStr = '';
+    let hashStr = '';
+
+    const hashIdx = input.indexOf('#');
+    const qIdx = input.indexOf('?');
+
+    if (hashIdx !== -1) {
+        hashStr = input.substring(hashIdx + 1);
+    }
+    if (qIdx !== -1) {
+        searchStr = hashIdx !== -1 && hashIdx > qIdx
+            ? input.substring(qIdx + 1, hashIdx)
+            : input.substring(qIdx + 1);
+    }
+    if (hashIdx === -1 && qIdx === -1) {
+        hashStr = input;
+    }
+
+    const hashParams = new URLSearchParams(hashStr);
+    const searchParams = new URLSearchParams(searchStr);
+
+    const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+    const expiresIn = hashParams.get('expires_in') || searchParams.get('expires_in');
+    const error = hashParams.get('error') || searchParams.get('error');
+    const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
 
     if (accessToken) {
         return {
@@ -1013,7 +1043,6 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
     if (isCapacitorNative()) {
         try {
             const { Browser } = await import('@capacitor/browser');
-            localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
             await Browser.open({ url: authUrl, windowName: '_system' });
             return;
         } catch (capErr) {
@@ -1027,7 +1056,6 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
     // are blocked or severed across mobile browser tabs.
     if (isMobileDevice()) {
         try {
-            localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
             if (typeof window !== 'undefined') {
                 sessionStorage.setItem('splitit_oauth_return_route', window.location.pathname + window.location.search);
             }
@@ -1084,7 +1112,6 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         // Popup was blocked: navigate in place
         try {
-            localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
             if (typeof window !== 'undefined') {
                 sessionStorage.setItem('splitit_oauth_return_route', window.location.pathname + window.location.search);
             }

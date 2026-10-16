@@ -231,9 +231,10 @@ export default function Settings() {
     };
 
     const statusBadge = getStatusBadge();
+    const isPersistedOrAuthed = gdrive.isAuthenticated() || gdrive.isSessionPersisted();
     const isConnected = syncStatus === 'connected' || (syncStatus === 'syncing' && gdrive.isAuthenticated());
     const isReauth = syncStatus === 'reauth_required';
-    const showConnectedCard = isConnected || isReauth;
+    const showConnectedCard = isPersistedOrAuthed || isConnected || isReauth;
     const userProfile = gdrive.getUserProfile();
     const userDisplay = userProfile?.email || userProfile?.name || 'Connected to Google Drive';
 
@@ -431,7 +432,7 @@ export default function Settings() {
                                             style={{ minHeight: '38px' }}
                                         >
                                             <RefreshCw size={14} className={syncStatus === 'syncing' ? 'spin-animation' : ''} />
-                                            <span>{syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}</span>
+                                            <span>{syncStatus === 'syncing' ? 'Syncing...' : (syncStatus === 'error' ? 'Retry Sync' : 'Sync Now')}</span>
                                         </button>
                                     )}
 

@@ -25,6 +25,9 @@ const parsed = parseTokenFromHash(sampleHash);
 assert.strictEqual(parsed.accessToken, 'ya29.test123token', 'Token extraction matches');
 assert.strictEqual(parsed.expiresIn, 3600, 'Expiration parsed matches');
 
+const deepLinkParsed = parseTokenFromHash('com.splitit.expensemanager://oauth#access_token=ya29.deeplinktoken&expires_in=3600');
+assert.strictEqual(deepLinkParsed.accessToken, 'ya29.deeplinktoken', 'Deep link URL with hash token matches');
+
 const emptyParsed = parseTokenFromHash('');
 assert.strictEqual(emptyParsed, null, 'Empty hash returns null');
 
@@ -33,6 +36,9 @@ assert.strictEqual(errorParsed.error, 'The user denied access', 'Error hash extr
 
 const simpleErrorParsed = parseTokenFromHash('#error=invalid_request');
 assert.strictEqual(simpleErrorParsed.error, 'invalid_request', 'Simple error code extracted');
+
+const queryErrorParsed = parseTokenFromHash('com.splitit.expensemanager://oauth?error=access_denied&error_description=User+cancelled#state=xyz');
+assert.strictEqual(queryErrorParsed.error, 'User cancelled', 'Query error extracted even with trailing hash fragment');
 
 // Test 2: sanitizeClientId & isValidClientId
 console.log('Test 2: sanitizeClientId & isValidClientId');
@@ -178,6 +184,36 @@ const stateChangedCurrency = {
 };
 assert.notStrictEqual(computeStateHash(stateChangedCurrency), hash1, 'Hash must change when currency changes');
 
+const stateChangedDescription = {
+    ...baseState1,
+    transactions: [{ id: 't1', amount: 50, date: '2026-01-01', description: 'Dinner with drinks' }]
+};
+assert.notStrictEqual(computeStateHash(stateChangedDescription), hash1, 'Hash must change when transaction description changes');
+
+const stateChangedCategory = {
+    ...baseState1,
+    transactions: [{ id: 't1', amount: 50, date: '2026-01-01', category: 'Food & Drinks' }]
+};
+assert.notStrictEqual(computeStateHash(stateChangedCategory), hash1, 'Hash must change when transaction category changes');
+
+const stateChangedPayer = {
+    ...baseState1,
+    transactions: [{ id: 't1', amount: 50, date: '2026-01-01', payerId: 'u2' }]
+};
+assert.notStrictEqual(computeStateHash(stateChangedPayer), hash1, 'Hash must change when transaction payerId changes');
+
+const stateChangedSplits = {
+    ...baseState1,
+    transactions: [{ id: 't1', amount: 50, date: '2026-01-01', splitMode: 'EXACT', splits: { u1: 30, u2: 20 } }]
+};
+assert.notStrictEqual(computeStateHash(stateChangedSplits), hash1, 'Hash must change when transaction splits change');
+
+const stateChangedUserEmail = {
+    ...baseState1,
+    users: [{ id: 'u1', name: 'Alice', email: 'alice@example.com' }, { id: 'u2', name: 'Bob' }]
+};
+assert.notStrictEqual(computeStateHash(stateChangedUserEmail), hash1, 'Hash must change when user email changes');
+
 // Test 8: clearExpiredToken vs clearAuth non-destructive session retention
 console.log('Test 8: clearExpiredToken vs clearAuth session retention');
 const storageMap = new Map();
@@ -214,5 +250,23 @@ assert.strictEqual(getOAuthRedirectUri(), 'com.splitit.expensemanager://oauth', 
 
 delete global.window.Capacitor;
 assert.strictEqual(isCapacitorNative(), false, 'Capacitor native cleared');
+
+// Test 10: Settings showConnectedCard resilience during offline and error states
+console.log('Test 10: Settings showConnectedCard resilience during offline and error');
+localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
+localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify({ email: 'user@example.com' }));
+
+// Simulate helper logic from Settings.jsx:
+const evaluateShowConnected = (syncStatus, isAuthed, isPersisted) => {
+    const isPersistedOrAuthed = isAuthed || isPersisted;
+    const isConnected = syncStatus === 'connected' || (syncStatus === 'syncing' && isAuthed);
+    const isReauth = syncStatus === 'reauth_required';
+    return isPersistedOrAuthed || isConnected || isReauth;
+};
+
+assert.strictEqual(evaluateShowConnected('offline', false, true), true, 'Connected card remains visible when offline');
+assert.strictEqual(evaluateShowConnected('error', false, true), true, 'Connected card remains visible during error');
+assert.strictEqual(evaluateShowConnected('reauth_required', false, true), true, 'Connected card remains visible when reauth is required');
+assert.strictEqual(evaluateShowConnected('disconnected', false, false), false, 'Signed out card shown when not persisted and disconnected');
 
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');
