@@ -186,8 +186,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Register local Capacitor plugin before super.onCreate initializes the bridge
+        // Register local Capacitor plugins before super.onCreate initializes the bridge
         registerPlugin(AndroidPrintPlugin.class);
+        registerPlugin(NativeGoogleAuthPlugin.class);
         super.onCreate(savedInstanceState);
 
         registerPrintBridge();

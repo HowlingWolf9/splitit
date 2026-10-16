@@ -10,6 +10,10 @@ import {
     computeStateHash,
     clearExpiredToken,
     clearAuth,
+    initiateGoogleAuth,
+    trySilentRestore,
+    getAccessToken,
+    getUserProfile,
     STORAGE_KEY_TOKEN,
     STORAGE_KEY_EXPIRES_AT,
     STORAGE_KEY_CONNECTED,
@@ -20,6 +24,7 @@ import {
     buildGroupPayload,
     NostrPoolManager
 } from '../src/services/multiUserSync.js';
+import { Capacitor } from '@capacitor/core';
 
 console.log('--- Running Deep Verification Tests ---');
 
@@ -245,15 +250,72 @@ clearAuth();
 assert.strictEqual(localStorage.getItem(STORAGE_KEY_CONNECTED), null, 'Connected flag cleared on sign out');
 assert.strictEqual(localStorage.getItem(STORAGE_KEY_USER_PROFILE), null, 'Profile cleared on sign out');
 
-// Test 9: isCapacitorNative & getOAuthRedirectUri on Capacitor
-console.log('Test 9: isCapacitorNative and custom scheme redirect URI');
-global.window.Capacitor = {
-    isNativePlatform: () => true
-};
-assert.strictEqual(isCapacitorNative(), true, 'Capacitor native detected');
-assert.strictEqual(getOAuthRedirectUri(), 'com.splitit.expensemanager://oauth', 'Custom scheme returned on native');
+// Test 9: isCapacitorNative, getOAuthRedirectUri & NativeGoogleAuthPlugin delegation
+console.log('Test 9: isCapacitorNative, getOAuthRedirectUri and NativeGoogleAuthPlugin delegation');
+global.androidBridge = {};
+global.window.androidBridge = global.androidBridge;
+global.window.Capacitor = Capacitor;
 
+assert.strictEqual(isCapacitorNative(), true, 'Capacitor native detected');
+assert.strictEqual(getOAuthRedirectUri(), 'http://localhost', 'Clean localhost origin returned on native');
+
+let nativeMethodCalled = null;
+Capacitor.PluginHeaders = [
+    {
+        name: 'NativeGoogleAuthPlugin',
+        methods: [
+            { name: 'signIn', rtype: 'promise' },
+            { name: 'trySilentSignIn', rtype: 'promise' },
+            { name: 'signOut', rtype: 'promise' }
+        ]
+    }
+];
+Capacitor.nativePromise = async (plugin, method) => {
+    nativeMethodCalled = method;
+    if (plugin === 'NativeGoogleAuthPlugin' && method === 'signIn') {
+        return {
+            accessToken: 'ya29.native_test_token',
+            expiresIn: 3600,
+            email: 'test@android.local',
+            name: 'Android User'
+        };
+    }
+    if (plugin === 'NativeGoogleAuthPlugin' && method === 'trySilentSignIn') {
+        return {
+            accessToken: 'ya29.silent_test_token',
+            expiresIn: 3600,
+            email: 'test@android.local',
+            name: 'Android User'
+        };
+    }
+    return {};
+};
+
+let callbackToken = null;
+await initiateGoogleAuth({
+    onToken: (token) => {
+        callbackToken = token;
+    }
+});
+
+assert.strictEqual(nativeMethodCalled, 'signIn', 'initiateGoogleAuth routed through NativeGoogleAuthPlugin.signIn');
+assert.strictEqual(callbackToken, 'ya29.native_test_token', 'Access token received from native plugin');
+assert.strictEqual(getAccessToken(), 'ya29.native_test_token', 'Access token saved to localStorage');
+assert.strictEqual(getUserProfile()?.email, 'test@android.local', 'Profile saved to localStorage');
+
+// Test silent restore via native plugin
+clearExpiredToken();
+assert.strictEqual(getAccessToken(), null, 'Token cleared for silent restore test');
+localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
+const restored = await trySilentRestore();
+assert.strictEqual(restored, true, 'Silent restore succeeded via native plugin');
+assert.strictEqual(nativeMethodCalled, 'trySilentSignIn', 'trySilentRestore called NativeGoogleAuthPlugin.trySilentSignIn');
+assert.strictEqual(getAccessToken(), 'ya29.silent_test_token', 'Silent token saved');
+
+delete global.androidBridge;
+delete global.window.androidBridge;
 delete global.window.Capacitor;
+Capacitor.PluginHeaders = [];
 assert.strictEqual(isCapacitorNative(), false, 'Capacitor native cleared');
 
 // Test 10: Settings showConnectedCard resilience during offline and error states

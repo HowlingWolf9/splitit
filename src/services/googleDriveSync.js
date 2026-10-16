@@ -6,6 +6,8 @@
  * Stores state inside a hidden application file: splitit_appdata_v1.json
  */
 
+import { registerPlugin } from '@capacitor/core';
+
 export const APP_DATA_FILE_NAME = 'splitit_appdata_v1.json';
 export const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 export const UPLOAD_API_BASE = 'https://www.googleapis.com/upload/drive/v3';
@@ -392,8 +394,16 @@ export function isMobileOrNative() {
     return isCapacitorNative() || isMobileDevice();
 }
 
+let nativeGoogleAuth = null;
+function getNativeGoogleAuth() {
+    if (!nativeGoogleAuth) {
+        nativeGoogleAuth = registerPlugin('NativeGoogleAuthPlugin');
+    }
+    return nativeGoogleAuth;
+}
+
 /**
- * Silently attempts to refresh or restore the access token via GIS (desktop only)
+ * Silently attempts to refresh or restore the access token via GIS (desktop only) or Native Google Play Services (Android)
  */
 export async function trySilentRestore() {
     try {
@@ -404,7 +414,32 @@ export async function trySilentRestore() {
             return true;
         }
 
-        // On mobile/native, avoid background GIS popup attempts that can stall on third-party cookie restrictions
+        // On Capacitor Native (Android), attempt silent sign-in via native Google Play Services
+        if (isCapacitorNative()) {
+            try {
+                const NativeGoogleAuth = getNativeGoogleAuth();
+                const res = await NativeGoogleAuth.trySilentSignIn();
+                if (res?.accessToken) {
+                    setAccessToken(res.accessToken, res.expiresIn || 3600);
+                    if (res.email) {
+                        try {
+                            localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify({
+                                email: res.email,
+                                name: res.name || ''
+                            }));
+                        } catch {
+                            // ignore
+                        }
+                    }
+                    return true;
+                }
+            } catch {
+                return false;
+            }
+            return false;
+        }
+
+        // On mobile web, avoid background GIS popup attempts that can stall on third-party cookie restrictions
         if (isMobileOrNative()) {
             return false;
         }
@@ -462,14 +497,14 @@ export async function trySilentRestore() {
 
 /**
  * Resolves standard OAuth redirect URI compatible with Google Web OAuth:
- * - In Capacitor (Android/iOS): 'com.splitit.expensemanager://oauth'
+ * - In Capacitor (Android/iOS): 'http://localhost'
  * - In local dev: origin (e.g. 'http://localhost:5173')
  * - In hosted environments: origin + base pathname (without trailing index.html or client-side routes)
  */
 export function getOAuthRedirectUri() {
     if (typeof window === 'undefined') return 'http://localhost';
     if (isCapacitorNative()) {
-        return 'com.splitit.expensemanager://oauth';
+        return 'http://localhost';
     }
     const origin = window.location.origin || 'http://localhost';
     if (origin === 'null' || origin.startsWith('file:')) {
@@ -534,11 +569,21 @@ export function setAccessToken(token, expiresInSeconds = 3600) {
  * identity and can seamlessly prompt or perform one-tap re-authorization.
  */
 export function clearExpiredToken() {
+    let token = null;
     try {
+        token = localStorage.getItem(STORAGE_KEY_TOKEN);
         localStorage.removeItem(STORAGE_KEY_TOKEN);
         localStorage.removeItem(STORAGE_KEY_EXPIRES_AT);
     } catch {
         // ignore
+    }
+
+    if (isCapacitorNative() && token) {
+        try {
+            getNativeGoogleAuth().clearToken?.({ token }).catch(() => {});
+        } catch {
+            // ignore
+        }
     }
 }
 
@@ -556,6 +601,14 @@ export function clearAuth() {
         localStorage.removeItem(STORAGE_KEY_CUSTOM_CLIENT_ID);
     } catch {
         // ignore
+    }
+
+    if (isCapacitorNative()) {
+        try {
+            getNativeGoogleAuth().signOut().catch(() => {});
+        } catch {
+            // ignore
+        }
     }
 }
 
@@ -1081,16 +1134,33 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         `prompt=${encodeURIComponent(promptMode)}` +
         stateParam;
 
-    // 1. Native Capacitor environment: Launch Google OAuth in Chrome Custom Tabs
-    // Shares the user's active Google account from their default browser (Chrome)
-    // without requiring manual re-entry of password/2FA in an isolated WebView.
+    // 1. Native Capacitor environment: Native Google Play Services 1-tap account picker
     if (isCapacitorNative()) {
         try {
-            const { Browser } = await import('@capacitor/browser');
-            await Browser.open({ url: authUrl, windowName: '_system' });
+            const NativeGoogleAuth = getNativeGoogleAuth();
+            const res = await NativeGoogleAuth.signIn();
+            if (res?.accessToken) {
+                setAccessToken(res.accessToken, res.expiresIn || 3600);
+                if (res.email) {
+                    try {
+                        localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify({
+                            email: res.email,
+                            name: res.name || ''
+                        }));
+                    } catch {
+                        // ignore
+                    }
+                }
+                onToken?.(res.accessToken, res.expiresIn || 3600);
+                return;
+            } else {
+                onError?.(new Error('Sign-in cancelled'));
+                return;
+            }
+        } catch (nativeErr) {
+            console.error('Native Google Sign-In error:', nativeErr);
+            onError?.(nativeErr);
             return;
-        } catch (capErr) {
-            console.warn('[SplitIt Auth] Capacitor Browser.open failed, falling back to redirect:', capErr);
         }
     }
 

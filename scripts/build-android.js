@@ -79,7 +79,16 @@ if (target === 'apk') {
   gradleTasks.push('assembleRelease', 'bundleRelease');
 }
 
-// Safely clean release output folder to avoid OneDrive file-locking conflicts
+// Safely clean release output & intermediates folders to avoid OneDrive file-locking conflicts
+const intermediateDir = path.join(androidDir, 'app', 'build', 'intermediates');
+if (fs.existsSync(intermediateDir)) {
+  try {
+    fs.rmSync(intermediateDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 400 });
+  } catch {
+    // Continue even if Windows briefly delays file handle release
+  }
+}
+
 const apkOutputDir = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'release');
 if (fs.existsSync(apkOutputDir)) {
   try {
