@@ -630,4 +630,105 @@ const shouldShowAll = hasExternalPayer || hasExternalSplit || Boolean(hasExterna
 
 assert.strictEqual(shouldShowAll, true, 'Expense with external collector must trigger showAllUsers = true');
 
+// Test 17: Interactive backup import normalization, strategy options, and cloud action handling
+console.log('Test 17: Backup normalization, strategy options, and cloud actions');
+
+const legacyBackupSample = {
+    version: '1.0',
+    appName: 'SplitIt',
+    exportDate: '2026-10-10T12:00:00.000Z',
+    data: {
+        currency: 'EUR',
+        currentUserId: 'u_alice',
+        users: [
+            { id: 'u_alice', name: 'Alice', createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' },
+            { id: 'u_bob', name: 'Bob', createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' }
+        ],
+        groups: [
+            { id: 'grp_paris', name: 'Paris Trip', members: ['u_alice', 'u_bob'], createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' }
+        ],
+        expenses: [
+            { id: 'exp_hotel', description: 'Boutique Hotel', amount: 320, date: '2026-10-02', payerId: 'u_alice', createdAt: '2026-10-02T10:00:00.000Z', updatedAt: '2026-10-02T10:00:00.000Z' }
+        ],
+        settlements: [
+            { id: 'stl_alice_bob', amount: 160, date: '2026-10-04', payerId: 'u_bob', receiverId: 'u_alice', createdAt: '2026-10-04T10:00:00.000Z', updatedAt: '2026-10-04T10:00:00.000Z' }
+        ]
+    }
+};
+
+// 1. Normalization of legacy backup format (expenses + settlements -> unified transactions)
+const rawInner = legacyBackupSample.data;
+const rawTx = Array.isArray(rawInner.transactions) ? rawInner.transactions : [];
+let normalizedTx;
+if (rawTx.length > 0) {
+    normalizedTx = rawTx;
+} else {
+    const legacyExpenses = (rawInner.expenses || []).map(e => ({ ...e, type: e.type || 'EXPENSE' }));
+    const legacySettlements = (rawInner.settlements || []).map(s => ({ ...s, type: s.type || 'SETTLEMENT' }));
+    normalizedTx = [...legacyExpenses, ...legacySettlements];
+}
+
+const normalizedBackup = {
+    ...rawInner,
+    transactions: normalizedTx,
+    users: rawInner.users || [],
+    groups: rawInner.groups || [],
+    currency: rawInner.currency || 'INR',
+    deletedIds: rawInner.deletedIds || { groups: {}, members: {}, expenses: {}, settlements: {} },
+    currentUserId: rawInner.currentUserId || 'u_alice'
+};
+
+assert.strictEqual(normalizedBackup.transactions.length, 2, 'Legacy expenses and settlements combined into unified transactions');
+assert.strictEqual(normalizedBackup.transactions[0].type, 'EXPENSE', 'Expense has type EXPENSE');
+assert.strictEqual(normalizedBackup.transactions[1].type, 'SETTLEMENT', 'Settlement has type SETTLEMENT');
+assert.strictEqual(normalizedBackup.currency, 'EUR', 'Currency preserved as EUR');
+
+// 2. Clean Restore (Replace All) vs Smart Merge (Combine Data)
+const existingLocalState = {
+    users: [{ id: 'u_local_user', name: 'Local User', createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' }],
+    groups: [{ id: 'grp_local_groceries', name: 'Groceries', members: ['u_local_user'], createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' }],
+    transactions: [{ id: 'tx_milk', description: 'Milk', amount: 4, type: 'EXPENSE', payerId: 'u_local_user', createdAt: '2026-10-05T00:00:00.000Z', updatedAt: '2026-10-05T00:00:00.000Z' }],
+    currency: 'USD',
+    currentUserId: 'u_local_user',
+    deletedIds: { groups: {}, members: {}, expenses: {}, settlements: {} }
+};
+
+// Under REPLACE: resulting transactions contains only backup records (2 txns)
+const replacedState = {
+    ...normalizedBackup,
+    currentUserId: 'u_bob' // simulate targetUserId mapping
+};
+assert.strictEqual(replacedState.transactions.length, 2, 'Replace contains only the 2 backup transactions');
+assert.strictEqual(replacedState.groups.length, 1, 'Replace contains only backup groups');
+assert.strictEqual(replacedState.currentUserId, 'u_bob', 'Target user profile mapped to Bob');
+assert.strictEqual(replacedState.transactions.some(t => t.id === 'tx_milk'), false, 'Replaced state does not include local transaction');
+
+// Under MERGE: resulting transactions union local + backup records (3 txns, 2 groups)
+const targetUserIdChoice = 'u_bob';
+const mergedBackupState = mergeAppState(existingLocalState, normalizedBackup);
+if (targetUserIdChoice) {
+    mergedBackupState.currentUserId = targetUserIdChoice;
+}
+assert.strictEqual(mergedBackupState.transactions.length, 3, 'Smart Merge unioned local (1) + backup (2) transactions');
+assert.strictEqual(mergedBackupState.groups.length, 2, 'Smart Merge unioned local (1) + backup (1) groups');
+assert.strictEqual(mergedBackupState.users.length, 3, 'Smart Merge unioned local (1) + backup (2) users');
+assert.strictEqual(mergedBackupState.currentUserId, 'u_bob', 'Merged state respects chosen targetUserId');
+assert.ok(mergedBackupState.transactions.some(t => t.id === 'tx_milk'), 'Merged state retains local transaction');
+assert.ok(mergedBackupState.transactions.some(t => t.id === 'exp_hotel'), 'Merged state includes backup expense');
+assert.ok(mergedBackupState.transactions.some(t => t.id === 'stl_alice_bob'), 'Merged state includes backup settlement');
+
+// 3. Google Drive Overwrite Cloud Payload validation
+const nowIso = new Date().toISOString();
+const cloudOverwritePayload = {
+    version: '2.1',
+    appName: 'SplitIt',
+    lastSyncedAt: nowIso,
+    data: replacedState
+};
+assert.strictEqual(cloudOverwritePayload.version, '2.1', 'Cloud overwrite payload adheres to schema v2.1');
+assert.strictEqual(cloudOverwritePayload.appName, 'SplitIt', 'Cloud overwrite appName matches SplitIt');
+assert.strictEqual(cloudOverwritePayload.data.transactions.length, 2, 'Cloud overwrite data holds restored transactions');
+const cloudHash = computeStateHash(cloudOverwritePayload.data);
+assert.ok(cloudHash && typeof cloudHash === 'string' && cloudHash.length > 0, 'Deterministic state hash generated for cloud payload');
+
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');

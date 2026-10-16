@@ -1,7 +1,7 @@
 {
   "name": "expense-manager",
   "private": true,
-  "version": "1.7.12",
+  "version": "1.7.13",
   "description": "SplitIt - Modern Expense Manager for Group Expenses and Settlements",
   "author": "HowlingWolf9",
   "type": "module",

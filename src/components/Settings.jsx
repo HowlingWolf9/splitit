@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import * as gdrive from '../services/googleDriveSync';
 import { exportBackupJson, readJsonFile, openDesktopBackupFile, isDesktopApp } from '../utils/fileHelper';
+import ImportBackupModal from './ImportBackupModal';
 import {
     Settings as SettingsIcon,
     Download,
@@ -27,7 +28,7 @@ export default function Settings() {
         setCurrency,
         currencies,
         exportData,
-        importData,
+        importBackupAdvanced,
         syncStatus,
         syncError,
         lastSyncedAt,
@@ -43,6 +44,7 @@ export default function Settings() {
 
     const fileInputRef = useRef(null);
     const [message, setMessage] = useState(null); // { type: 'success' | 'error', text: string }
+    const [pendingBackup, setPendingBackup] = useState(null); // { data, filename }
 
     // Nostr Relay configuration state
     const [nostrRelays, setNostrRelays] = useState(() => getConfiguredRelays?.() || []);
@@ -65,27 +67,44 @@ export default function Settings() {
         }
     };
 
+    const validateBackupData = (parsed) => {
+        if (!parsed || typeof parsed !== 'object') {
+            throw new Error('File does not contain a valid JSON object');
+        }
+        const inner = (parsed.data && typeof parsed.data === 'object' && (
+            parsed.data.users ||
+            parsed.data.members ||
+            parsed.data.transactions ||
+            parsed.data.expenses ||
+            parsed.data.groups
+        )) ? parsed.data : parsed;
+
+        const hasUsers = Array.isArray(inner.users) || Array.isArray(inner.members);
+        const hasTx = Array.isArray(inner.transactions) || Array.isArray(inner.expenses) || Array.isArray(inner.settlements);
+        const hasGroups = Array.isArray(inner.groups);
+
+        if (!hasUsers && !hasTx && !hasGroups) {
+            throw new Error('Unrecognized backup structure: no users, groups, or transactions found');
+        }
+        return true;
+    };
+
     const handleImportClick = async () => {
         if (isDesktopApp()) {
-            if (!window.confirm('⚠️ Importing will replace all existing data. Are you sure you want to proceed?')) {
-                return;
-            }
             try {
                 const res = await openDesktopBackupFile();
                 if (res?.canceled) return;
                 if (res?.success && res.content) {
-                    const result = importData(res.content);
-                    if (result.success) {
-                        showMessage('success', 'Data imported successfully!');
-                    } else {
-                        showMessage('error', result.error || 'Failed to import data');
-                    }
+                    const parsed = JSON.parse(res.content);
+                    validateBackupData(parsed);
+                    const fname = res.filePath ? res.filePath.split(/[/\\]/).pop() : 'backup.json';
+                    setPendingBackup({ data: parsed, filename: fname });
                 } else if (res?.error) {
                     showMessage('error', res.error);
                 }
             } catch (err) {
                 console.error('Desktop import error:', err);
-                showMessage('error', 'Failed to read backup file');
+                showMessage('error', 'Failed to read backup file: ' + (err.message || 'Unknown error'));
             }
             return;
         }
@@ -96,26 +115,28 @@ export default function Settings() {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        if (!window.confirm('⚠️ Importing will replace all existing data. Are you sure you want to proceed?')) {
-            event.target.value = '';
-            return;
-        }
-
         try {
             const text = await readJsonFile(file);
-            const result = importData(text);
-
-            if (result.success) {
-                showMessage('success', 'Data imported successfully!');
-            } else {
-                showMessage('error', result.error || 'Failed to import data');
-            }
+            const parsed = JSON.parse(text);
+            validateBackupData(parsed);
+            setPendingBackup({ data: parsed, filename: file.name });
         } catch (err) {
             console.error('File read error:', err);
             showMessage('error', 'Failed to read file: ' + (err.message || 'Unknown error'));
         }
 
         event.target.value = '';
+    };
+
+    const handleConfirmImport = async (options) => {
+        const result = await importBackupAdvanced(options);
+        if (result.success) {
+            setPendingBackup(null);
+            showMessage('success', options.mode === 'MERGE' ? 'Data merged successfully!' : 'Backup restored successfully!');
+        } else {
+            showMessage('error', result.error || 'Failed to import backup');
+            throw new Error(result.error || 'Failed to import backup');
+        }
     };
 
     const handleAddRelay = (e) => {
@@ -720,6 +741,16 @@ export default function Settings() {
                     </div>
                 </div>
             </div>
+
+            {pendingBackup && (
+                <ImportBackupModal
+                    isOpen={Boolean(pendingBackup)}
+                    backupData={pendingBackup.data}
+                    filename={pendingBackup.filename}
+                    onClose={() => setPendingBackup(null)}
+                    onConfirm={handleConfirmImport}
+                />
+            )}
         </div>
     );
 }

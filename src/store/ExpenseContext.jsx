@@ -13,6 +13,7 @@ import { mergeAppState } from '../services/googleDriveSync';
 import * as multiSync from '../services/multiUserSync';
 import { mergeGroupSyncPayload } from '../services/multiUserSync';
 import { App as CapApp } from '@capacitor/app';
+import { exportBackupJson } from '../utils/fileHelper';
 
 
 // CURRENCIES
@@ -215,7 +216,7 @@ function expenseReducer(state, action) {
                 transactions: payload.transactions || state.transactions,
                 deletedIds: payload.deletedIds || state.deletedIds,
                 currency: payload.currency || state.currency,
-                currentUserId: state.currentUserId,
+                currentUserId: payload.currentUserId || state.currentUserId,
                 selectedGroupId: state.selectedGroupId
             };
         }
@@ -1574,14 +1575,14 @@ export function ExpenseProvider({ children }) {
     }, [balances, state.currentUserId]);
 
     // Export Data
-    const exportData = () => {
+    const exportData = useCallback(() => {
         const exportObject = {
             version: '2.0',
             exportDate: new Date().toISOString(),
             data: state
         };
         return JSON.stringify(exportObject, null, 2);
-    };
+    }, [state]);
 
     // Import Data
     const importData = (jsonString) => {
@@ -1609,6 +1610,155 @@ export function ExpenseProvider({ children }) {
             };
         }
     };
+
+    // Advanced Interactive Import with normalization, merge/replace, safety backup, and cloud sync control
+    const importBackupAdvanced = useCallback(async ({
+        data,
+        mode = 'REPLACE', // 'REPLACE' | 'MERGE'
+        cloudAction = 'OVERWRITE', // 'OVERWRITE' | 'MERGE' | 'PAUSE'
+        targetUserId = null,
+        createSafetyBackup = true
+    }) => {
+        try {
+            if (!data || typeof data !== 'object') {
+                throw new Error('Invalid backup data provided');
+            }
+
+            // 1. Pre-import safety export if requested
+            if (createSafetyBackup) {
+                try {
+                    const currentSnapshot = exportData();
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    await exportBackupJson(currentSnapshot, `splitit-safety-backup-${dateStr}.json`);
+                } catch (e) {
+                    console.warn('Safety backup failed or was canceled:', e);
+                }
+            }
+
+            // 2. Normalize data
+            const rawPayload = (data.data && typeof data.data === 'object' && (
+                data.data.users ||
+                data.data.members ||
+                data.data.transactions ||
+                data.data.expenses ||
+                data.data.groups
+            )) ? data.data : data;
+
+            const rawTransactions = Array.isArray(rawPayload.transactions) ? rawPayload.transactions : [];
+            let normalizedTransactions;
+            if (rawTransactions.length > 0) {
+                normalizedTransactions = rawTransactions;
+            } else {
+                const legacyExpenses = Array.isArray(rawPayload.expenses)
+                    ? rawPayload.expenses.map(e => ({ ...e, type: e.type || 'EXPENSE' }))
+                    : [];
+                const legacySettlements = Array.isArray(rawPayload.settlements)
+                    ? rawPayload.settlements.map(s => ({ ...s, type: s.type || 'SETTLEMENT' }))
+                    : [];
+                normalizedTransactions = [...legacyExpenses, ...legacySettlements];
+            }
+
+            const rawUsers = Array.isArray(rawPayload.users)
+                ? rawPayload.users
+                : (Array.isArray(rawPayload.members) ? rawPayload.members : []);
+            const rawGroups = Array.isArray(rawPayload.groups) ? rawPayload.groups : [];
+
+            const effectiveCurrency = typeof rawPayload.currency === 'string' && rawPayload.currency.trim()
+                ? rawPayload.currency.trim()
+                : (state.currency || 'INR');
+
+            const normalizedData = {
+                ...rawPayload,
+                transactions: normalizedTransactions,
+                users: rawUsers.length > 0 ? rawUsers : state.users,
+                groups: rawGroups,
+                deletedIds: {
+                    groups: {},
+                    members: {},
+                    expenses: {},
+                    settlements: {},
+                    ...(rawPayload.deletedIds || {})
+                },
+                currency: effectiveCurrency,
+                currentUserId: targetUserId || rawPayload.currentUserId || (rawUsers[0]?.id || state.currentUserId)
+            };
+
+            let resultingState = normalizedData;
+
+            if (mode === 'MERGE') {
+                const merged = gdrive.mergeAppState(state, normalizedData);
+                if (targetUserId) {
+                    merged.currentUserId = targetUserId;
+                }
+                resultingState = merged;
+                dispatch({ type: MERGE_SYNCED_DATA, payload: merged });
+                if (targetUserId) {
+                    dispatch({ type: SET_CURRENT_USER, payload: targetUserId });
+                }
+            } else {
+                // REPLACE mode
+                dispatch({ type: IMPORT_DATA, payload: normalizedData });
+                if (targetUserId) {
+                    dispatch({ type: SET_CURRENT_USER, payload: targetUserId });
+                }
+            }
+
+            // 3. Cloud sync action (when authenticated with Google Drive)
+            if (gdrive.isAuthenticated()) {
+                if (cloudAction === 'PAUSE') {
+                    setIsAutoSyncEnabled(false);
+                } else if (cloudAction === 'OVERWRITE') {
+                    try {
+                        const token = gdrive.getAccessToken();
+                        if (token) {
+                            let fileId = null;
+                            try {
+                                fileId = localStorage.getItem(gdrive.STORAGE_KEY_FILE_ID);
+                            } catch {
+                                // ignore
+                            }
+                            if (!fileId) {
+                                try {
+                                    const remoteFile = await gdrive.findAppDataFile(token);
+                                    fileId = remoteFile?.id || null;
+                                } catch {
+                                    // ignore
+                                }
+                            }
+
+                            const now = new Date().toISOString();
+                            const payload = {
+                                version: '2.1',
+                                appName: 'SplitIt',
+                                lastSyncedAt: now,
+                                data: resultingState
+                            };
+
+                            isApplyingDriveMergeRef.current = true;
+                            await gdrive.uploadAppData(token, payload, fileId);
+                            gdrive.setLastSynced(now);
+                            setLastSyncedAt(now);
+                            lastSyncedHashRef.current = gdrive.computeStateHash(resultingState);
+                        }
+                    } catch (cloudErr) {
+                        console.error('Failed to overwrite Google Drive cloud data:', cloudErr);
+                    }
+                } else if (cloudAction === 'MERGE') {
+                    setTimeout(() => {
+                        syncNow();
+                    }, 500);
+                }
+            }
+
+            return { success: true, count: normalizedTransactions.length };
+        } catch (error) {
+            console.error('importBackupAdvanced error:', error);
+            return {
+                success: false,
+                error: error.message || 'Failed to import backup'
+            };
+        }
+    }, [state, exportData, setIsAutoSyncEnabled, syncNow]);
 
     // Active Group Object
     const selectedGroup = useMemo(() => {
@@ -1686,6 +1836,7 @@ export function ExpenseProvider({ children }) {
             setCurrency,
             exportData,
             importData,
+            importBackupAdvanced,
             currencies: CURRENCIES,
             // Google Drive Cloud Sync
             syncStatus,
