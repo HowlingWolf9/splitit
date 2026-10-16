@@ -3,9 +3,17 @@ import {
     parseTokenFromHash,
     getOAuthRedirectUri,
     isMobileDevice,
+    isCapacitorNative,
     sanitizeClientId,
     isValidClientId,
-    mergeAppState
+    mergeAppState,
+    computeStateHash,
+    clearExpiredToken,
+    clearAuth,
+    STORAGE_KEY_TOKEN,
+    STORAGE_KEY_EXPIRES_AT,
+    STORAGE_KEY_CONNECTED,
+    STORAGE_KEY_USER_PROFILE
 } from '../src/services/googleDriveSync.js';
 
 console.log('--- Running Deep Verification Tests ---');
@@ -131,5 +139,80 @@ assert.strictEqual(merged.groups.length, 0, 'Merged groups must remain 0 - no se
 assert.strictEqual(merged.transactions.length, 0, 'Merged transactions must remain 0 - no seed data');
 assert.strictEqual(merged.users.length, 1, 'Only default user present');
 assert.strictEqual(merged.users[0].name, 'You');
+
+// Test 7: computeStateHash determinism & mutation detection
+console.log('Test 7: computeStateHash determinism and mutation detection');
+const baseState1 = {
+    users: [{ id: 'u1', name: 'Alice' }, { id: 'u2', name: 'Bob' }],
+    groups: [{ id: 'g1', name: 'Trip', members: ['u1', 'u2'] }],
+    transactions: [{ id: 't1', amount: 50, date: '2026-01-01' }],
+    deletedIds: { groups: {}, members: {}, expenses: {}, settlements: {} },
+    currency: 'INR'
+};
+const baseState2 = {
+    users: [{ id: 'u2', name: 'Bob' }, { id: 'u1', name: 'Alice' }],
+    groups: [{ id: 'g1', name: 'Trip', members: ['u2', 'u1'] }],
+    transactions: [{ id: 't1', amount: 50, date: '2026-01-01' }],
+    deletedIds: { groups: {}, members: {}, expenses: {}, settlements: {} },
+    currency: 'INR'
+};
+const hash1 = computeStateHash(baseState1);
+const hash2 = computeStateHash(baseState2);
+assert.strictEqual(hash1, hash2, 'Hash must be identical regardless of item order');
+
+const stateChangedAmount = {
+    ...baseState1,
+    transactions: [{ id: 't1', amount: 99, date: '2026-01-01' }]
+};
+assert.notStrictEqual(computeStateHash(stateChangedAmount), hash1, 'Hash must change when transaction amount changes');
+
+const stateChangedUser = {
+    ...baseState1,
+    users: [{ id: 'u1', name: 'Alice Updated' }, { id: 'u2', name: 'Bob' }]
+};
+assert.notStrictEqual(computeStateHash(stateChangedUser), hash1, 'Hash must change when user name changes');
+
+const stateChangedCurrency = {
+    ...baseState1,
+    currency: 'USD'
+};
+assert.notStrictEqual(computeStateHash(stateChangedCurrency), hash1, 'Hash must change when currency changes');
+
+// Test 8: clearExpiredToken vs clearAuth non-destructive session retention
+console.log('Test 8: clearExpiredToken vs clearAuth session retention');
+const storageMap = new Map();
+global.localStorage = {
+    getItem: (k) => (storageMap.has(k) ? storageMap.get(k) : null),
+    setItem: (k, v) => storageMap.set(k, String(v)),
+    removeItem: (k) => storageMap.delete(k)
+};
+
+localStorage.setItem(STORAGE_KEY_TOKEN, 'ya29.testtoken');
+localStorage.setItem(STORAGE_KEY_EXPIRES_AT, String(Date.now() + 3600000));
+localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
+localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify({ email: 'user@example.com', name: 'User' }));
+
+// Call clearExpiredToken on 401:
+clearExpiredToken();
+assert.strictEqual(localStorage.getItem(STORAGE_KEY_TOKEN), null, 'Expired token cleared');
+assert.strictEqual(localStorage.getItem(STORAGE_KEY_EXPIRES_AT), null, 'Expired timestamp cleared');
+assert.strictEqual(localStorage.getItem(STORAGE_KEY_CONNECTED), 'true', 'Connected flag preserved on 401');
+assert.strictEqual(JSON.parse(localStorage.getItem(STORAGE_KEY_USER_PROFILE)).email, 'user@example.com', 'Profile preserved on 401');
+
+// Call clearAuth on explicit user sign out:
+clearAuth();
+assert.strictEqual(localStorage.getItem(STORAGE_KEY_CONNECTED), null, 'Connected flag cleared on sign out');
+assert.strictEqual(localStorage.getItem(STORAGE_KEY_USER_PROFILE), null, 'Profile cleared on sign out');
+
+// Test 9: isCapacitorNative & getOAuthRedirectUri on Capacitor
+console.log('Test 9: isCapacitorNative and custom scheme redirect URI');
+global.window.Capacitor = {
+    isNativePlatform: () => true
+};
+assert.strictEqual(isCapacitorNative(), true, 'Capacitor native detected');
+assert.strictEqual(getOAuthRedirectUri(), 'com.splitit.expensemanager://oauth', 'Custom scheme returned on native');
+
+delete global.window.Capacitor;
+assert.strictEqual(isCapacitorNative(), false, 'Capacitor native cleared');
 
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');

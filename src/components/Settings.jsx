@@ -194,6 +194,14 @@ export default function Settings() {
                     color: 'hsl(var(--color-success))',
                     border: 'hsl(var(--color-success) / 0.3)'
                 };
+            case 'reauth_required':
+                return {
+                    label: 'Session Expired',
+                    icon: <AlertCircle size={13} />,
+                    bg: 'hsl(var(--color-warning-soft))',
+                    color: 'hsl(var(--color-warning))',
+                    border: 'hsl(var(--color-warning) / 0.3)'
+                };
             case 'offline':
                 return {
                     label: 'Offline',
@@ -224,6 +232,8 @@ export default function Settings() {
 
     const statusBadge = getStatusBadge();
     const isConnected = syncStatus === 'connected' || (syncStatus === 'syncing' && gdrive.isAuthenticated());
+    const isReauth = syncStatus === 'reauth_required';
+    const showConnectedCard = isConnected || isReauth;
     const userProfile = gdrive.getUserProfile();
     const userDisplay = userProfile?.email || userProfile?.name || 'Connected to Google Drive';
 
@@ -339,7 +349,7 @@ export default function Settings() {
                     )}
 
                     {/* When Signed Out */}
-                    {!isConnected ? (
+                    {!showConnectedCard ? (
                         <div style={{
                             background: 'hsl(var(--color-surface-dim))',
                             border: '1px solid hsl(var(--color-border))',
@@ -384,7 +394,7 @@ export default function Settings() {
                             </button>
                         </div>
                     ) : (
-                        /* When Signed In */
+                        /* When Signed In or Re-auth Required */
                         <div style={{
                             background: 'hsl(var(--color-surface-dim))',
                             border: '1px solid hsl(var(--color-border))',
@@ -396,22 +406,34 @@ export default function Settings() {
                                     <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'hsl(var(--color-text-main))' }}>
                                         {userDisplay}
                                     </div>
-                                    <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
-                                        Last synced: {formatLastSynced(lastSyncedAt)}
+                                    <div style={{ fontSize: '0.78rem', color: isReauth ? 'hsl(var(--color-warning))' : 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
+                                        {isReauth ? 'Session expired — tap Reconnect to resume sync' : `Last synced: ${formatLastSynced(lastSyncedAt)}`}
                                     </div>
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                    <button
-                                        type="button"
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={syncNow}
-                                        disabled={syncStatus === 'syncing' || syncStatus === 'offline'}
-                                        style={{ minHeight: '38px' }}
-                                    >
-                                        <RefreshCw size={14} className={syncStatus === 'syncing' ? 'spin-animation' : ''} />
-                                        <span>{syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}</span>
-                                    </button>
+                                    {isReauth ? (
+                                        <button
+                                            type="button"
+                                            className="btn btn-primary btn-sm"
+                                            onClick={connectDrive}
+                                            style={{ minHeight: '38px' }}
+                                        >
+                                            <RefreshCw size={14} />
+                                            <span>Reconnect</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={syncNow}
+                                            disabled={syncStatus === 'syncing' || syncStatus === 'offline'}
+                                            style={{ minHeight: '38px' }}
+                                        >
+                                            <RefreshCw size={14} className={syncStatus === 'syncing' ? 'spin-animation' : ''} />
+                                            <span>{syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}</span>
+                                        </button>
+                                    )}
 
                                     <button
                                         type="button"

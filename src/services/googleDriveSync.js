@@ -24,6 +24,65 @@ export const DEFAULT_GOOGLE_CLIENT_ID =
     '1048596041042-32b07m6m2sp99v1g7v7v0j4p8n0s2r9f.apps.googleusercontent.com';
 
 /**
+ * Computes a fast deterministic 32-bit hash of the core application state
+ * (users, groups, transactions, deleted tombstones, and currency).
+ * Returns hex string. Returns empty string for empty/null state.
+ */
+export function computeStateHash(state) {
+    if (!state || typeof state !== 'object') return '';
+
+    const users = Array.isArray(state.users) ? state.users : (Array.isArray(state.members) ? state.members : []);
+    const groups = Array.isArray(state.groups) ? state.groups : [];
+
+    let transactions = [];
+    if (Array.isArray(state.transactions) && state.transactions.length > 0) {
+        transactions = state.transactions;
+    } else {
+        const exp = Array.isArray(state.expenses) ? state.expenses : [];
+        const stl = Array.isArray(state.settlements) ? state.settlements : [];
+        transactions = [...exp, ...stl];
+    }
+
+    const normalized = {
+        u: users.map(u => ({
+            id: u.id || '',
+            u: u.updatedAt || u.createdAt || '',
+            n: u.name || ''
+        })).sort((a, b) => (a.id || '').localeCompare(b.id || '')),
+
+        g: groups.map(g => ({
+            id: g.id || '',
+            u: g.updatedAt || g.createdAt || '',
+            n: g.name || '',
+            m: Array.isArray(g.members) ? [...g.members].sort() : []
+        })).sort((a, b) => (a.id || '').localeCompare(b.id || '')),
+
+        t: transactions.map(t => ({
+            id: t.id || '',
+            u: t.updatedAt || t.createdAt || '',
+            a: t.amount ?? '',
+            d: t.date || ''
+        })).sort((a, b) => (a.id || '').localeCompare(b.id || '')),
+
+        d: {
+            g: Object.keys(state.deletedIds?.groups || {}).sort().reduce((acc, k) => { acc[k] = state.deletedIds.groups[k]; return acc; }, {}),
+            m: Object.keys(state.deletedIds?.members || {}).sort().reduce((acc, k) => { acc[k] = state.deletedIds.members[k]; return acc; }, {}),
+            e: Object.keys(state.deletedIds?.expenses || {}).sort().reduce((acc, k) => { acc[k] = state.deletedIds.expenses[k]; return acc; }, {}),
+            s: Object.keys(state.deletedIds?.settlements || {}).sort().reduce((acc, k) => { acc[k] = state.deletedIds.settlements[k]; return acc; }, {})
+        },
+
+        c: state.currency || 'INR'
+    };
+
+    const str = JSON.stringify(normalized);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
+    }
+    return hash.toString(16);
+}
+
+/**
  * Deterministic conflict-free app state merger:
  * - Unions records by ID
  * - Filters out records whose IDs exist in merged deletedIds with deletedAt >= updatedAt
@@ -309,12 +368,18 @@ export function isMobileDevice() {
 }
 
 /**
+ * Detects whether the current environment is running inside Capacitor native container (Android / iOS)
+ */
+export function isCapacitorNative() {
+    if (typeof window === 'undefined') return false;
+    return Boolean(window.Capacitor?.isNativePlatform?.());
+}
+
+/**
  * Detects whether the current environment is running inside Capacitor native container or on mobile
  */
 export function isMobileOrNative() {
-    if (typeof window === 'undefined') return false;
-    if (window.Capacitor?.isNativePlatform?.()) return true;
-    return isMobileDevice();
+    return isCapacitorNative() || isMobileDevice();
 }
 
 /**
@@ -387,13 +452,14 @@ export async function trySilentRestore() {
 
 /**
  * Resolves standard OAuth redirect URI compatible with Google Web OAuth:
- * - In Capacitor (Android/iOS) and local dev: 'http://localhost'
+ * - In Capacitor (Android/iOS): 'com.splitit.expensemanager://oauth'
+ * - In local dev: origin (e.g. 'http://localhost:5173')
  * - In hosted environments: origin + base pathname (without trailing index.html or client-side routes)
  */
 export function getOAuthRedirectUri() {
     if (typeof window === 'undefined') return 'http://localhost';
-    if (window.Capacitor?.isNativePlatform?.()) {
-        return 'http://localhost';
+    if (isCapacitorNative()) {
+        return 'com.splitit.expensemanager://oauth';
     }
     const origin = window.location.origin || 'http://localhost';
     if (origin === 'null' || origin.startsWith('file:')) {
@@ -449,6 +515,20 @@ export function setAccessToken(token, expiresInSeconds = 3600) {
         localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
     } catch (e) {
         console.error('Failed to save access token:', e);
+    }
+}
+
+/**
+ * Clears only the expired access token without wiping user profile or connection status.
+ * Preserves STORAGE_KEY_CONNECTED and STORAGE_KEY_USER_PROFILE so the app knows the user's
+ * identity and can seamlessly prompt or perform one-tap re-authorization.
+ */
+export function clearExpiredToken() {
+    try {
+        localStorage.removeItem(STORAGE_KEY_TOKEN);
+        localStorage.removeItem(STORAGE_KEY_EXPIRES_AT);
+    } catch {
+        // ignore
     }
 }
 
@@ -585,7 +665,7 @@ export async function findAppDataFile(token) {
     });
 
     if (res.status === 401) {
-        clearAuth();
+        clearExpiredToken();
         throw new Error('Authentication expired. Please reconnect Google Drive.');
     }
 
@@ -624,7 +704,7 @@ export async function downloadAppData(token, fileId) {
     });
 
     if (res.status === 401) {
-        clearAuth();
+        clearExpiredToken();
         throw new Error('Authentication expired. Please reconnect Google Drive.');
     }
 
@@ -660,7 +740,7 @@ export async function uploadAppData(token, data, existingFileId = null) {
         });
 
         if (res.status === 401) {
-            clearAuth();
+            clearExpiredToken();
             throw new Error('Authentication expired. Please reconnect Google Drive.');
         }
 
@@ -700,7 +780,7 @@ export async function uploadAppData(token, data, existingFileId = null) {
         });
 
         if (res.status === 401) {
-            clearAuth();
+            clearExpiredToken();
             throw new Error('Authentication expired. Please reconnect Google Drive.');
         }
 
@@ -737,7 +817,7 @@ export async function testConnection(token = getAccessToken()) {
         });
 
         if (res.status === 401) {
-            clearAuth();
+            clearExpiredToken();
             return { success: false, error: 'Access token expired or unauthorized' };
         }
 
@@ -798,16 +878,44 @@ export async function syncWithDrive(localState, mergeFn) {
         }
 
         const now = new Date().toISOString();
+        const localHash = computeStateHash(localState);
 
         if (remoteFile && remoteFile.id) {
-            // File exists: Download & Merge
+            // File exists: Download & Compare
             const remoteContent = await downloadAppData(token, remoteFile.id);
             const remoteState = remoteContent?.data || remoteContent || {};
+            const remoteHash = computeStateHash(remoteState);
+
+            // If local state and remote state are completely identical, skip upload entirely!
+            if (localHash && remoteHash && localHash === remoteHash) {
+                setLastSynced(now);
+                return {
+                    success: true,
+                    mergedState: localState,
+                    unchanged: true,
+                    timestamp: now,
+                    fileId: remoteFile.id
+                };
+            }
 
             // Perform deterministic conflict-free merge
             const mergedState = typeof mergeFn === 'function'
                 ? mergeFn(localState, remoteState)
                 : { ...localState, ...remoteState };
+
+            const mergedHash = computeStateHash(mergedState);
+
+            // If merged state is identical to remote, remote already has everything; skip upload!
+            if (mergedHash && remoteHash && mergedHash === remoteHash) {
+                setLastSynced(now);
+                return {
+                    success: true,
+                    mergedState,
+                    unchanged: false,
+                    timestamp: now,
+                    fileId: remoteFile.id
+                };
+            }
 
             const syncPayload = {
                 version: '2.1',
@@ -899,11 +1007,25 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         `include_granted_scopes=true&` +
         `prompt=${encodeURIComponent(promptMode)}`;
 
-    // 1. Mobile & Native platforms: ALWAYS use direct standard OAuth redirect flow.
+    // 1. Native Capacitor environment: Launch Google OAuth in Chrome Custom Tabs
+    // Shares the user's active Google account from their default browser (Chrome)
+    // without requiring manual re-entry of password/2FA in an isolated WebView.
+    if (isCapacitorNative()) {
+        try {
+            const { Browser } = await import('@capacitor/browser');
+            localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
+            await Browser.open({ url: authUrl, windowName: '_system' });
+            return;
+        } catch (capErr) {
+            console.warn('[SplitIt Auth] Capacitor Browser.open failed, falling back to redirect:', capErr);
+        }
+    }
+
+    // 2. Mobile web browsers: Use direct standard OAuth redirect flow.
     // GIS popup mode on mobile opens a new tab and gets stuck indefinitely on
     // accounts.google.com/gsi/transformer because window.opener and window.close()
-    // are blocked or severed across mobile browser tabs and WebViews.
-    if (isMobileOrNative()) {
+    // are blocked or severed across mobile browser tabs.
+    if (isMobileDevice()) {
         try {
             localStorage.setItem(STORAGE_KEY_CONNECTED, 'true');
             if (typeof window !== 'undefined') {

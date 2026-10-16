@@ -474,7 +474,9 @@ export function ExpenseProvider({ children }) {
     // Cloud Sync State
     const [syncStatus, setSyncStatus] = useState(() => {
         if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
-        return gdrive.isAuthenticated() ? 'connected' : 'disconnected';
+        if (gdrive.isAuthenticated()) return 'connected';
+        if (gdrive.isSessionPersisted()) return 'reauth_required';
+        return 'disconnected';
     });
     const [syncError, setSyncError] = useState(null);
     const [lastSyncedAt, setLastSyncedAt] = useState(() => gdrive.getLastSynced());
@@ -484,6 +486,7 @@ export function ExpenseProvider({ children }) {
     const isSyncingRef = useRef(false);
     const syncTimerRef = useRef(null);
     const isInitialRender = useRef(true);
+    const lastSyncedHashRef = useRef(gdrive.computeStateHash(state));
     const stateRef = useRef(state);
     stateRef.current = state;
 
@@ -505,7 +508,7 @@ export function ExpenseProvider({ children }) {
             return;
         }
         if (!gdrive.isAuthenticated()) {
-            setSyncStatus('disconnected');
+            setSyncStatus(gdrive.isSessionPersisted() ? 'reauth_required' : 'disconnected');
             return;
         }
 
@@ -516,25 +519,40 @@ export function ExpenseProvider({ children }) {
         try {
             const result = await gdrive.syncWithDrive(state, mergeAppState);
             if (result.success) {
-                dispatch({
-                    type: MERGE_SYNCED_DATA,
-                    payload: result.mergedState
-                });
+                const currentHash = gdrive.computeStateHash(state);
+                const mergedHash = gdrive.computeStateHash(result.mergedState);
+
+                // Loop breaking guard: only dispatch if data actually differs!
+                if (mergedHash && mergedHash !== currentHash) {
+                    dispatch({
+                        type: MERGE_SYNCED_DATA,
+                        payload: result.mergedState
+                    });
+                    lastSyncedHashRef.current = mergedHash;
+                } else {
+                    lastSyncedHashRef.current = currentHash;
+                }
+
                 setLastSyncedAt(result.timestamp);
                 setSyncStatus('connected');
                 setSyncError(null);
             } else {
                 setSyncError(result.error);
-                if (result.error && (result.error.includes('expired') || result.error.includes('token') || result.error.includes('authenticated'))) {
-                    setSyncStatus('disconnected');
+                if (result.error && (result.error.includes('expired') || result.error.includes('token') || result.error.includes('authenticated') || result.error.includes('401'))) {
+                    setSyncStatus(gdrive.isSessionPersisted() ? 'reauth_required' : 'disconnected');
                 } else {
                     setSyncStatus('error');
                 }
             }
         } catch (err) {
             console.error('Error in syncNow:', err);
-            setSyncError(err.message || 'Sync failed');
-            setSyncStatus('error');
+            const errMsg = err.message || 'Sync failed';
+            setSyncError(errMsg);
+            if (errMsg.includes('expired') || errMsg.includes('token') || errMsg.includes('Authentication') || errMsg.includes('401')) {
+                setSyncStatus(gdrive.isSessionPersisted() ? 'reauth_required' : 'disconnected');
+            } else {
+                setSyncStatus('error');
+            }
         } finally {
             isSyncingRef.current = false;
         }
@@ -553,7 +571,7 @@ export function ExpenseProvider({ children }) {
             },
             onError: (err) => {
                 setSyncError(err.message || 'Google Drive authorization failed');
-                setSyncStatus('error');
+                setSyncStatus(gdrive.isSessionPersisted() ? 'reauth_required' : 'error');
             }
         });
     }, [syncNow]);
@@ -624,6 +642,11 @@ export function ExpenseProvider({ children }) {
                 // 1. Immediately persist token & fetch profile in active environment
                 gdrive.setAccessToken(tokenData.accessToken, tokenData.expiresIn);
                 gdrive.fetchUserProfile(tokenData.accessToken).catch(() => {});
+
+                // Close native Capacitor Chrome Custom Tab if active
+                if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
+                    import('@capacitor/browser').then(({ Browser }) => Browser.close()).catch(() => {});
+                }
 
                 // 2. If running inside a popup window, notify opener and attempt window.close()
                 if (typeof window !== 'undefined' && window.opener && window.opener !== window) {
@@ -715,11 +738,22 @@ export function ExpenseProvider({ children }) {
         // 6. Capacitor deep link listener (appUrlOpen) for Android/iOS native app containers
         let capListenerPromise = null;
         try {
-            capListenerPromise = CapApp.addListener('appUrlOpen', (data) => {
+            capListenerPromise = CapApp.addListener('appUrlOpen', async (data) => {
                 if (data?.url) {
+                    try {
+                        const { Browser } = await import('@capacitor/browser');
+                        await Browser.close();
+                    } catch {
+                        // ignore if already closed
+                    }
                     const hashIdx = data.url.indexOf('#');
                     if (hashIdx !== -1) {
                         processTokenHash(data.url.substring(hashIdx));
+                    } else {
+                        const qIdx = data.url.indexOf('?');
+                        if (qIdx !== -1) {
+                            processTokenHash(data.url.substring(qIdx));
+                        }
                     }
                 }
             });
@@ -827,10 +861,17 @@ export function ExpenseProvider({ children }) {
     useEffect(() => {
         if (isInitialRender.current) {
             isInitialRender.current = false;
+            lastSyncedHashRef.current = gdrive.computeStateHash(state);
             return;
         }
 
         if (isSyncingRef.current) return;
+
+        // Break infinite loop: only trigger if state actually changed from last synced hash
+        const currentHash = gdrive.computeStateHash(state);
+        if (currentHash === lastSyncedHashRef.current) {
+            return;
+        }
 
         if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine) {
             if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
