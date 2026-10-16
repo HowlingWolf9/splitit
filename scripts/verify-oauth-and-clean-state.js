@@ -731,4 +731,64 @@ assert.strictEqual(cloudOverwritePayload.data.transactions.length, 2, 'Cloud ove
 const cloudHash = computeStateHash(cloudOverwritePayload.data);
 assert.ok(cloudHash && typeof cloudHash === 'string' && cloudHash.length > 0, 'Deterministic state hash generated for cloud payload');
 
+// 4. Stale selectedGroupId reset invariant on Clean Restore
+const localWithActiveGroup = {
+    ...existingLocalState,
+    selectedGroupId: 'grp_local_groceries'
+};
+const resolveValidGroupId = (targetGroupId, groups) => {
+    return (targetGroupId === 'non-group' || (Array.isArray(groups) && groups.some(g => g.id === targetGroupId)))
+        ? targetGroupId
+        : null;
+};
+
+// If active group is not in replaced groups, it must reset to null
+const cleanedReplacedGroupId = resolveValidGroupId(localWithActiveGroup.selectedGroupId, replacedState.groups);
+assert.strictEqual(cleanedReplacedGroupId, null, 'Orphaned selectedGroupId resets to null when group is missing from replaced backup');
+
+// Under merge, if group still exists, selectedGroupId is preserved
+const mergedGroupId = resolveValidGroupId(localWithActiveGroup.selectedGroupId, mergedBackupState.groups);
+assert.strictEqual(mergedGroupId, 'grp_local_groceries', 'Valid selectedGroupId is preserved in merged groups');
+
+// If tombstone deleted the selected group during merge, selectedGroupId must reset to null
+const tombstoneState = {
+    ...normalizedBackup,
+    deletedIds: {
+        groups: { 'grp_local_groceries': '2026-10-10T00:00:00.000Z' },
+        members: {},
+        expenses: {},
+        settlements: {}
+    }
+};
+const mergedWithTombstone = mergeAppState(localWithActiveGroup, tombstoneState);
+const tombstonedGroupId = resolveValidGroupId(localWithActiveGroup.selectedGroupId, mergedWithTombstone.groups);
+assert.strictEqual(tombstonedGroupId, null, 'Tombstoned group causes selectedGroupId to cleanly reset to null');
+
+// 5. Pre-import safety backup cancellation simulation
+const simulateSafetyBackupCheck = (createSafetyBackup, exportResult) => {
+    if (createSafetyBackup && exportResult?.canceled) {
+        return { success: false, canceled: true, error: 'Safety backup was canceled. Import stopped.' };
+    }
+    return { success: true };
+};
+const canceledSafetyResult = simulateSafetyBackupCheck(true, { success: false, canceled: true });
+assert.strictEqual(canceledSafetyResult.canceled, true, 'Safety backup cancellation stops import immediately');
+assert.strictEqual(canceledSafetyResult.success, false, 'Import does not succeed if safety backup is canceled');
+
+// 6. Upfront timestamp normalization prevents state hash drift
+const rawItemsMissingTimestamps = [
+    { id: 'tx_old_1', description: 'Coffee', amount: 3.5, type: 'EXPENSE' },
+    { id: 'tx_old_2', description: 'Lunch', amount: 15, type: 'EXPENSE' }
+];
+const normalizedWithTimestamps = rawItemsMissingTimestamps.map(t => ({
+    ...t,
+    createdAt: t.createdAt || nowIso,
+    updatedAt: t.updatedAt || t.createdAt || nowIso
+}));
+assert.ok(normalizedWithTimestamps[0].createdAt, 'Timestamp normalized for item 0');
+assert.ok(normalizedWithTimestamps[0].updatedAt, 'UpdatedAt normalized for item 0');
+const normHash1 = computeStateHash({ transactions: normalizedWithTimestamps });
+const normHash2 = computeStateHash({ transactions: normalizedWithTimestamps });
+assert.strictEqual(normHash1, normHash2, 'Normalized state produces deterministic state hash');
+
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');

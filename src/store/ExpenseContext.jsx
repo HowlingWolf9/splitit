@@ -209,15 +209,22 @@ function expenseReducer(state, action) {
             };
         case MERGE_SYNCED_DATA: {
             const payload = action.payload || {};
+            const resolvedGroups = payload.groups || state.groups;
+            const targetGroupId = payload.selectedGroupId !== undefined ? payload.selectedGroupId : state.selectedGroupId;
+            const validSelectedGroupId = (
+                targetGroupId === 'non-group' ||
+                (Array.isArray(resolvedGroups) && resolvedGroups.some(g => g.id === targetGroupId))
+            ) ? targetGroupId : null;
+
             return {
                 ...state,
                 users: payload.users || state.users,
-                groups: payload.groups || state.groups,
+                groups: resolvedGroups,
                 transactions: payload.transactions || state.transactions,
                 deletedIds: payload.deletedIds || state.deletedIds,
                 currency: payload.currency || state.currency,
                 currentUserId: payload.currentUserId || state.currentUserId,
-                selectedGroupId: state.selectedGroupId
+                selectedGroupId: validSelectedGroupId
             };
         }
         case MERGE_GROUP_SYNC_DATA: {
@@ -268,6 +275,12 @@ function expenseReducer(state, action) {
                 ...(action.payload.deletedIds || {})
             };
 
+            const targetGroupId = action.payload.selectedGroupId !== undefined ? action.payload.selectedGroupId : state.selectedGroupId;
+            const validSelectedGroupId = (
+                targetGroupId === 'non-group' ||
+                importedGroups.some(g => g.id === targetGroupId)
+            ) ? targetGroupId : null;
+
             return {
                 ...state,
                 ...action.payload,
@@ -275,7 +288,8 @@ function expenseReducer(state, action) {
                 groups: importedGroups,
                 transactions: importedTransactions,
                 deletedIds: importedDeletedIds,
-                currentUserId: action.payload.currentUserId || (importedUsers[0]?.id || 'u_you')
+                currentUserId: action.payload.currentUserId || (importedUsers[0]?.id || 'u_you'),
+                selectedGroupId: validSelectedGroupId
             };
         }
         default:
@@ -1629,25 +1643,34 @@ export function ExpenseProvider({ children }) {
                 try {
                     const currentSnapshot = exportData();
                     const dateStr = new Date().toISOString().split('T')[0];
-                    await exportBackupJson(currentSnapshot, `splitit-safety-backup-${dateStr}.json`);
+                    const safetyRes = await exportBackupJson(currentSnapshot, `splitit-safety-backup-${dateStr}.json`);
+                    if (safetyRes?.canceled) {
+                        return {
+                            success: false,
+                            canceled: true,
+                            error: 'Safety backup was canceled. Import stopped.'
+                        };
+                    }
                 } catch (e) {
                     console.warn('Safety backup failed or was canceled:', e);
+                    return {
+                        success: false,
+                        error: 'Failed to create safety backup: ' + (e.message || 'Export error')
+                    };
                 }
             }
 
             // 2. Normalize data
-            const rawPayload = (data.data && typeof data.data === 'object' && (
-                data.data.users ||
-                data.data.members ||
-                data.data.transactions ||
-                data.data.expenses ||
-                data.data.groups
-            )) ? data.data : data;
+            const rawPayload = (data.data && typeof data.data === 'object' && !Array.isArray(data.data))
+                ? data.data
+                : data;
+
+            const now = new Date().toISOString();
 
             const rawTransactions = Array.isArray(rawPayload.transactions) ? rawPayload.transactions : [];
-            let normalizedTransactions;
+            let unmappedTransactions;
             if (rawTransactions.length > 0) {
-                normalizedTransactions = rawTransactions;
+                unmappedTransactions = rawTransactions;
             } else {
                 const legacyExpenses = Array.isArray(rawPayload.expenses)
                     ? rawPayload.expenses.map(e => ({ ...e, type: e.type || 'EXPENSE' }))
@@ -1655,13 +1678,31 @@ export function ExpenseProvider({ children }) {
                 const legacySettlements = Array.isArray(rawPayload.settlements)
                     ? rawPayload.settlements.map(s => ({ ...s, type: s.type || 'SETTLEMENT' }))
                     : [];
-                normalizedTransactions = [...legacyExpenses, ...legacySettlements];
+                unmappedTransactions = [...legacyExpenses, ...legacySettlements];
             }
+
+            // Normalize items with valid timestamps to guarantee hash consistency across reducer and Drive upload
+            const normalizedTransactions = unmappedTransactions.map(t => ({
+                ...t,
+                createdAt: t.createdAt || now,
+                updatedAt: t.updatedAt || t.createdAt || now
+            }));
 
             const rawUsers = Array.isArray(rawPayload.users)
                 ? rawPayload.users
                 : (Array.isArray(rawPayload.members) ? rawPayload.members : []);
+            const normalizedUsers = (rawUsers.length > 0 ? rawUsers : state.users).map(u => ({
+                ...u,
+                createdAt: u.createdAt || now,
+                updatedAt: u.updatedAt || u.createdAt || now
+            }));
+
             const rawGroups = Array.isArray(rawPayload.groups) ? rawPayload.groups : [];
+            const normalizedGroups = rawGroups.map(g => ({
+                ...g,
+                createdAt: g.createdAt || now,
+                updatedAt: g.updatedAt || g.createdAt || now
+            }));
 
             const effectiveCurrency = typeof rawPayload.currency === 'string' && rawPayload.currency.trim()
                 ? rawPayload.currency.trim()
@@ -1670,8 +1711,8 @@ export function ExpenseProvider({ children }) {
             const normalizedData = {
                 ...rawPayload,
                 transactions: normalizedTransactions,
-                users: rawUsers.length > 0 ? rawUsers : state.users,
-                groups: rawGroups,
+                users: normalizedUsers,
+                groups: normalizedGroups,
                 deletedIds: {
                     groups: {},
                     members: {},
@@ -1680,7 +1721,7 @@ export function ExpenseProvider({ children }) {
                     ...(rawPayload.deletedIds || {})
                 },
                 currency: effectiveCurrency,
-                currentUserId: targetUserId || rawPayload.currentUserId || (rawUsers[0]?.id || state.currentUserId)
+                currentUserId: targetUserId || rawPayload.currentUserId || (normalizedUsers[0]?.id || state.currentUserId)
             };
 
             let resultingState = normalizedData;
@@ -1706,6 +1747,11 @@ export function ExpenseProvider({ children }) {
             // 3. Cloud sync action (when authenticated with Google Drive)
             if (gdrive.isAuthenticated()) {
                 if (cloudAction === 'PAUSE') {
+                    if (syncTimerRef.current) {
+                        clearTimeout(syncTimerRef.current);
+                        syncTimerRef.current = null;
+                    }
+                    isApplyingDriveMergeRef.current = true;
                     setIsAutoSyncEnabled(false);
                 } else if (cloudAction === 'OVERWRITE') {
                     try {
@@ -1726,7 +1772,6 @@ export function ExpenseProvider({ children }) {
                                 }
                             }
 
-                            const now = new Date().toISOString();
                             const payload = {
                                 version: '2.1',
                                 appName: 'SplitIt',
@@ -1735,7 +1780,14 @@ export function ExpenseProvider({ children }) {
                             };
 
                             isApplyingDriveMergeRef.current = true;
-                            await gdrive.uploadAppData(token, payload, fileId);
+                            const uploadRes = await gdrive.uploadAppData(token, payload, fileId);
+                            if (uploadRes?.id && !fileId) {
+                                try {
+                                    localStorage.setItem(gdrive.STORAGE_KEY_FILE_ID, uploadRes.id);
+                                } catch {
+                                    // ignore
+                                }
+                            }
                             gdrive.setLastSynced(now);
                             setLastSyncedAt(now);
                             lastSyncedHashRef.current = gdrive.computeStateHash(resultingState);

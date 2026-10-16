@@ -71,13 +71,9 @@ export default function Settings() {
         if (!parsed || typeof parsed !== 'object') {
             throw new Error('File does not contain a valid JSON object');
         }
-        const inner = (parsed.data && typeof parsed.data === 'object' && (
-            parsed.data.users ||
-            parsed.data.members ||
-            parsed.data.transactions ||
-            parsed.data.expenses ||
-            parsed.data.groups
-        )) ? parsed.data : parsed;
+        const inner = (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data))
+            ? parsed.data
+            : parsed;
 
         const hasUsers = Array.isArray(inner.users) || Array.isArray(inner.members);
         const hasTx = Array.isArray(inner.transactions) || Array.isArray(inner.expenses) || Array.isArray(inner.settlements);
@@ -133,6 +129,8 @@ export default function Settings() {
         if (result.success) {
             setPendingBackup(null);
             showMessage('success', options.mode === 'MERGE' ? 'Data merged successfully!' : 'Backup restored successfully!');
+        } else if (result.canceled) {
+            throw new Error(result.error || 'Safety backup was canceled');
         } else {
             showMessage('error', result.error || 'Failed to import backup');
             throw new Error(result.error || 'Failed to import backup');

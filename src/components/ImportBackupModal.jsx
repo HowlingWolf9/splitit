@@ -76,18 +76,15 @@ export default function ImportBackupModal({
     onConfirm
 }) {
     useModalBackHandler(isOpen, onClose);
-    const { state } = useExpenses();
+    const { state, syncStatus } = useExpenses();
 
     // Extract inner payload
     const innerData = useMemo(() => {
         if (!backupData) return null;
-        return (backupData.data && typeof backupData.data === 'object' && (
-            backupData.data.users ||
-            backupData.data.members ||
-            backupData.data.transactions ||
-            backupData.data.expenses ||
-            backupData.data.groups
-        )) ? backupData.data : backupData;
+        if (backupData.data && typeof backupData.data === 'object' && !Array.isArray(backupData.data)) {
+            return backupData.data;
+        }
+        return backupData;
     }, [backupData]);
 
     // Extract backup normalized collections
@@ -112,9 +109,9 @@ export default function ImportBackupModal({
     }, [innerData]);
 
     const backupCurrency = innerData?.currency || backupData?.currency || state.currency || 'INR';
-    const backupDate = backupData?.exportDate || backupData?.lastSyncedAt || backupData?.date || null;
+    const backupDate = backupData?.exportDate || innerData?.exportDate || backupData?.lastSyncedAt || innerData?.lastSyncedAt || backupData?.date || innerData?.date || null;
     const relativeTime = getRelativeTime(backupDate);
-    const schemaVersion = backupData?.version || (backupData?.appName ? `${backupData.appName} v2` : 'v2.1');
+    const schemaVersion = backupData?.version || innerData?.version || (backupData?.appName ? `${backupData.appName} v2` : 'v2.1');
 
     // Active local state counts
     const currentUsersCount = state.users?.length || 0;
@@ -122,8 +119,8 @@ export default function ImportBackupModal({
     const currentTransactionsCount = state.transactions?.length || 0;
     const currentCurrency = state.currency || 'INR';
 
-    // Cloud connection status
-    const isDriveConnected = gdrive.isAuthenticated();
+    // Cloud connection status (active token or authenticated session)
+    const isDriveConnected = gdrive.isAuthenticated() || syncStatus === 'connected';
 
     // Form configuration state
     const [mode, setMode] = useState('REPLACE'); // 'REPLACE' | 'MERGE'
@@ -135,7 +132,7 @@ export default function ImportBackupModal({
 
     // Pre-select target user identity in backup representing "You"
     const [targetUserId, setTargetUserId] = useState(() => {
-        const currentUserName = state.users.find(u => u.id === state.currentUserId)?.name?.toLowerCase();
+        const currentUserName = (state.users || []).find(u => u.id === state.currentUserId)?.name?.toLowerCase();
         const matched = backupUsers.find(u => u.name && currentUserName && u.name.toLowerCase() === currentUserName);
         if (matched) return matched.id;
         if (innerData?.currentUserId && backupUsers.some(u => u.id === innerData.currentUserId)) {
@@ -618,7 +615,7 @@ export default function ImportBackupModal({
                                         >
                                             {backupUsers.map(u => (
                                                 <option key={u.id} value={u.id}>
-                                                    {u.name} {u.id === innerData?.currentUserId ? '(Author)' : ''}
+                                                    {u.name || 'Unnamed Member'} {u.id === innerData?.currentUserId ? '(Author)' : ''}
                                                 </option>
                                             ))}
                                         </select>
