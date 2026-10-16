@@ -300,7 +300,7 @@ export default function MembersView() {
                                         }}>
                                             {isPositive && `+${formatMoney(balance)}`}
                                             {isNegative && `-${formatMoney(Math.abs(balance))}`}
-                                            {!isPositive && !isNegative && '₹0.00'}
+                                            {!isPositive && !isNegative && formatMoney(0)}
                                         </div>
                                         <div style={{ fontSize: '0.76rem', color: isPositive ? 'hsl(var(--color-success))' : isNegative ? 'hsl(var(--color-danger))' : 'hsl(var(--color-text-muted))' }}>
                                             {isPositive ? 'gets back' : isNegative ? 'owes' : 'settled'}

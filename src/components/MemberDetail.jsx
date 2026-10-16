@@ -174,7 +174,7 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                         }}>
                             {isPositive && `+${formatMoney(balance)}`}
                             {isNegative && `-${formatMoney(Math.abs(balance))}`}
-                            {!isPositive && !isNegative && '₹0.00'}
+                            {!isPositive && !isNegative && formatMoney(0)}
                         </div>
                     </div>
                 </div>

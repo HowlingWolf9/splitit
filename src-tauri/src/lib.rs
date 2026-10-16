@@ -2,6 +2,22 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
+fn generate_oauth_nonce() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let nanos = now.as_nanos();
+    let ptr = &nanos as *const u128 as usize;
+    let mut state: u128 = nanos ^ ((ptr as u128) << 32) ^ 0x9E3779B97F4A7C15u128;
+    let mut hex = String::with_capacity(64);
+    for i in 0..4 {
+        state = state.wrapping_mul(0x6c62272e07bb014262b821756295c58d).wrapping_add(i);
+        state ^= state >> 64;
+        hex.push_str(&format!("{:016x}{:016x}", (state >> 64) as u64, state as u64));
+    }
+    hex.truncate(64);
+    hex
+}
+
 // Custom command to start a temporary localhost loopback server for Google OAuth
 #[tauri::command]
 fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
@@ -18,6 +34,8 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
 
     let callback_url = format!("http://127.0.0.1:{}/callback", port);
     let app_handle = app.clone();
+    let expected_nonce = generate_oauth_nonce();
+    let thread_nonce = expected_nonce.clone();
 
     // Spawn server handling in a background thread
     thread::spawn(move || {
@@ -41,7 +59,7 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
 
                     if url.starts_with("/callback") {
                         // Return an HTML page that reads the hash fragment and POSTs it back to /token
-                        let html = r#"<!DOCTYPE html>
+                        let html_template = r#"<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -87,7 +105,7 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
         fetch('/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hash: fullParams })
+          body: JSON.stringify({ hash: fullParams, nonce: '__SPLITIT_NONCE__' })
         })
         .then(() => {
           document.getElementById('status').innerText = '✓ Success! You can close this tab and return to SplitIt.';
@@ -105,6 +123,7 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
   </script>
 </body>
 </html>"#;
+                        let html = html_template.replace("__SPLITIT_NONCE__", &thread_nonce);
 
                         let response = tiny_http::Response::from_string(html)
                             .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap());
@@ -121,12 +140,23 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
                         let mut reader = request.as_reader();
                         let _ = std::io::Read::read_to_string(&mut reader, &mut content);
 
-                        // Parse json: {"hash": "..."}
-                        let hash_val = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                            json.get("hash").and_then(|v| v.as_str()).unwrap_or(&content).to_string()
+                        // Parse json: {"hash": "...", "nonce": "..."}
+                        let (hash_val, received_nonce) = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                            let h = json.get("hash").and_then(|v| v.as_str()).unwrap_or(&content).to_string();
+                            let n = json.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            (h, n)
                         } else {
-                            content
+                            (content, String::new())
                         };
+
+                        // Require matching nonce to reject unauthorized cross-site requests
+                        if received_nonce.is_empty() || received_nonce != thread_nonce {
+                            let response = tiny_http::Response::from_string("{\"error\":\"Forbidden: Invalid or missing nonce\"}")
+                                .with_status_code(403)
+                                .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+                            let _ = request.respond(response);
+                            continue;
+                        }
 
                         // Emit event to Tauri frontend
                         let _ = app_handle.emit("splitit:oauth-token", hash_val);
@@ -166,19 +196,35 @@ fn start_oauth_listener(app: tauri::AppHandle) -> Result<String, String> {
     Ok(callback_url)
 }
 
+fn validate_backup_path(path_str: &str) -> Result<&std::path::Path, String> {
+    let p = std::path::Path::new(path_str);
+    for comp in p.components() {
+        if let std::path::Component::ParentDir = comp {
+            return Err("Invalid file path: path traversal detected".to_string());
+        }
+    }
+    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+    if !ext.eq_ignore_ascii_case("json") && !ext.eq_ignore_ascii_case("txt") {
+        return Err("Invalid file path: must be a .json or .txt file".to_string());
+    }
+    Ok(p)
+}
+
 // Custom command to safely write backup JSON to any path chosen in native dialog
 #[tauri::command]
 fn save_backup_file(path: String, content: String) -> Result<(), String> {
-    if let Some(parent) = std::path::Path::new(&path).parent() {
+    let p = validate_backup_path(&path)?;
+    if let Some(parent) = p.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    std::fs::write(&path, content).map_err(|e| format!("Failed to save backup: {}", e))
+    std::fs::write(p, content).map_err(|e| format!("Failed to save backup: {}", e))
 }
 
 // Custom command to safely read backup JSON from any path chosen in native dialog
 #[tauri::command]
 fn read_backup_file(path: String) -> Result<String, String> {
-    let content = std::fs::read_to_string(&path).map_err(|e| format!("Failed to read backup: {}", e))?;
+    let p = validate_backup_path(&path)?;
+    let content = std::fs::read_to_string(p).map_err(|e| format!("Failed to read backup: {}", e))?;
     Ok(content.trim_start_matches('\u{feff}').to_string())
 }
 

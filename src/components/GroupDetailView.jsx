@@ -635,7 +635,7 @@ export default function GroupDetailView() {
                                         }}>
                                             {isPos && `+${formatMoney(bal)}`}
                                             {isNeg && `-${formatMoney(Math.abs(bal))}`}
-                                            {!isPos && !isNeg && '₹0.00'}
+                                            {!isPos && !isNeg && formatMoney(0)}
                                         </div>
                                     </div>
                                 );

@@ -490,6 +490,8 @@ export function ExpenseProvider({ children }) {
     const lastSyncedHashRef = useRef(gdrive.computeStateHash(state));
     const stateRef = useRef(state);
     stateRef.current = state;
+    const isApplyingDriveMergeRef = useRef(false);
+    const isApplyingRemoteGroupSyncRef = useRef(false);
 
     const setIsAutoSyncEnabled = useCallback((enabled) => {
         setIsAutoSyncEnabledState(enabled);
@@ -526,6 +528,7 @@ export function ExpenseProvider({ children }) {
 
                 // Loop breaking guard: only dispatch if data actually differs!
                 if (mergedHash && mergedHash !== currentHash) {
+                    isApplyingDriveMergeRef.current = true;
                     dispatch({
                         type: MERGE_SYNCED_DATA,
                         payload: result.mergedState
@@ -656,7 +659,7 @@ export function ExpenseProvider({ children }) {
                         window.opener.postMessage({
                             type: 'SPLITIT_GDRIVE_AUTH_TOKEN',
                             hash: hashPart
-                        }, '*');
+                        }, window.location.origin);
                     } catch {
                         // ignore postMessage error
                     }
@@ -707,6 +710,7 @@ export function ExpenseProvider({ children }) {
 
         // 3. Cross-window postMessage listener (for desktop popup mode)
         const handleMessage = (event) => {
+            if (typeof window !== 'undefined' && event.origin !== window.location.origin) return;
             if (event.data?.type === 'SPLITIT_GDRIVE_AUTH_TOKEN' && event.data.hash) {
                 processTokenHash(event.data.hash);
             }
@@ -863,6 +867,11 @@ export function ExpenseProvider({ children }) {
             return;
         }
 
+        if (isApplyingDriveMergeRef.current) {
+            isApplyingDriveMergeRef.current = false;
+            return;
+        }
+
         if (isSyncingRef.current) return;
 
         // Break infinite loop: only trigger if state actually changed from last synced hash
@@ -924,6 +933,7 @@ export function ExpenseProvider({ children }) {
                     g.id,
                     g.syncSecret,
                     (payload) => {
+                        isApplyingRemoteGroupSyncRef.current = true;
                         dispatch({
                             type: MERGE_GROUP_SYNC_DATA,
                             payload,
@@ -965,6 +975,10 @@ export function ExpenseProvider({ children }) {
     // Debounced automatic publish (1.5s) when a shared group's expenses or metadata change locally
     useEffect(() => {
         if (isInitialRender.current) return;
+        if (isApplyingRemoteGroupSyncRef.current) {
+            isApplyingRemoteGroupSyncRef.current = false;
+            return;
+        }
         const sharedGroups = (state.groups || []).filter(g => g.isShared && g.syncSecret);
         if (sharedGroups.length === 0) return;
 
@@ -991,8 +1005,8 @@ export function ExpenseProvider({ children }) {
         });
     }, [state.transactions, state.groups, setGroupSyncStatus]);
 
-    const enableGroupSync = useCallback(async (groupId, existingSecret = null) => {
-        const group = (stateRef.current.groups || []).find(g => g.id === groupId);
+    const enableGroupSync = useCallback(async (groupId, existingSecret = null, groupOverride = null) => {
+        const group = groupOverride || (stateRef.current.groups || []).find(g => g.id === groupId);
         if (!group) return { success: false, error: 'Group not found' };
 
         const secret = existingSecret || group.syncSecret || multiSync.generateSyncSecret();
@@ -1007,8 +1021,20 @@ export function ExpenseProvider({ children }) {
 
         setGroupSyncStatus(groupId, { status: 'syncing' });
 
+        // Construct updated state snapshot so publishGroupUpdate never reads stale state
+        const targetGroup = {
+            ...group,
+            isShared: true,
+            syncSecret: secret
+        };
+        const currentGroups = (stateRef.current.groups || []).filter(g => g.id !== groupId);
+        const nextStateSnapshot = {
+            ...stateRef.current,
+            groups: [...currentGroups, targetGroup]
+        };
+
         // Immediately publish current group state to relays
-        const pubRes = await multiSync.publishGroupUpdate(stateRef.current, groupId, secret);
+        const pubRes = await multiSync.publishGroupUpdate(nextStateSnapshot, groupId, secret);
         if (pubRes.success) {
             setGroupSyncStatus(groupId, {
                 status: 'synced',
@@ -1017,7 +1043,7 @@ export function ExpenseProvider({ children }) {
             });
         }
 
-        const inviteCode = multiSync.generateInviteCode(group, secret);
+        const inviteCode = multiSync.generateInviteCode(targetGroup, secret);
         return {
             success: true,
             syncSecret: secret,
@@ -1061,6 +1087,7 @@ export function ExpenseProvider({ children }) {
             // 2. Fetch latest snapshot from relays
             const fetchRes = await multiSync.fetchGroupStateOnce(groupId, group.syncSecret);
             if (fetchRes.success && fetchRes.payload) {
+                isApplyingRemoteGroupSyncRef.current = true;
                 dispatch({
                     type: MERGE_GROUP_SYNC_DATA,
                     payload: fetchRes.payload,
@@ -1081,7 +1108,7 @@ export function ExpenseProvider({ children }) {
         }
     }, [state, setGroupSyncStatus]);
 
-    const joinSharedGroup = useCallback(async (inviteCode, myMemberId = null) => {
+    const joinSharedGroup = useCallback(async (inviteCode, myMemberId = null, prefetchedPayload = null) => {
         const parsed = multiSync.parseInviteCode(inviteCode);
         if (!parsed) {
             return { success: false, error: 'Invalid invite code format. Must start with SPLIT-1-...' };
@@ -1091,16 +1118,21 @@ export function ExpenseProvider({ children }) {
         setGroupSyncStatus(groupId, { status: 'syncing', error: null });
 
         try {
-            const fetchRes = await multiSync.fetchGroupStateOnce(groupId, syncSecret, 7000);
-            if (!fetchRes.success || !fetchRes.payload) {
-                setGroupSyncStatus(groupId, { status: 'offline', error: fetchRes.error });
-                return { success: false, error: fetchRes.error || 'Could not fetch group data from relays.' };
+            let payload = prefetchedPayload;
+            if (!payload) {
+                const fetchRes = await multiSync.fetchGroupStateOnce(groupId, syncSecret, 7000);
+                if (!fetchRes.success || !fetchRes.payload) {
+                    setGroupSyncStatus(groupId, { status: 'offline', error: fetchRes.error });
+                    return { success: false, error: fetchRes.error || 'Could not fetch group data from relays.' };
+                }
+                payload = fetchRes.payload;
             }
 
+            isApplyingRemoteGroupSyncRef.current = true;
             dispatch({
                 type: MERGE_GROUP_SYNC_DATA,
                 payload: {
-                    ...fetchRes.payload,
+                    ...payload,
                     syncSecret
                 },
                 myMemberId: myMemberId || null
@@ -1112,11 +1144,25 @@ export function ExpenseProvider({ children }) {
                 error: null
             });
 
+            // If myMemberId was newly added, publish merged state so existing group members receive it immediately
+            const mergedGroupState = multiSync.mergeGroupSyncPayload(stateRef.current, { ...payload, syncSecret }, myMemberId || null);
+            const targetGroup = (mergedGroupState.groups || []).find(g => g.id === groupId);
+            const localGroupBefore = (stateRef.current.groups || []).find(g => g.id === groupId);
+            const wasMemberAdded = myMemberId && (!localGroupBefore || !(localGroupBefore.members || []).includes(myMemberId));
+
+            if (wasMemberAdded && targetGroup) {
+                try {
+                    await multiSync.publishGroupUpdate(mergedGroupState, groupId, syncSecret);
+                } catch (pubErr) {
+                    console.warn('Failed publishing new member to relays:', pubErr);
+                }
+            }
+
             return {
                 success: true,
                 groupId,
-                group: fetchRes.payload.group,
-                members: fetchRes.payload.members || []
+                group: targetGroup || payload.group,
+                members: payload.members || []
             };
         } catch (err) {
             console.error('joinSharedGroup error:', err);
@@ -1141,7 +1187,18 @@ export function ExpenseProvider({ children }) {
         });
     };
 
-    const addGroup = ({ name, type = 'other', icon = 'users', color = '#10b981', members = [], simplifyDebts = true, defaultCollectorId = null }) => {
+    const addGroup = ({
+        name,
+        type = 'other',
+        icon = 'users',
+        color = '#10b981',
+        members = [],
+        simplifyDebts = true,
+        defaultCollectorId = null,
+        isShared = false,
+        syncSecret = null,
+        myMemberId = null
+    }) => {
         const id = 'grp_' + generateId();
         dispatch({
             type: ADD_GROUP,
@@ -1154,6 +1211,9 @@ export function ExpenseProvider({ children }) {
                 members,
                 simplifyDebts,
                 defaultCollectorId: defaultCollectorId || null,
+                isShared: !!isShared,
+                syncSecret: syncSecret || null,
+                myMemberId: myMemberId || null,
                 createdAt: new Date().toISOString()
             }
         });
@@ -1322,8 +1382,8 @@ export function ExpenseProvider({ children }) {
                     });
                 }
                 if (t.type === 'SETTLEMENT') {
-                    if (balances[t.from] !== undefined) balances[t.from] += t.amount;
-                    if (balances[t.to] !== undefined) balances[t.to] -= t.amount;
+                    balances[t.from] = (balances[t.from] || 0) + t.amount;
+                    balances[t.to] = (balances[t.to] || 0) - t.amount;
                 }
             });
 
@@ -1374,7 +1434,22 @@ export function ExpenseProvider({ children }) {
                     allSettlements: settlements
                 };
             } else {
-                const memberIds = group ? group.members : state.users.map(u => u.id);
+                const baseMemberIds = group ? (group.members || []) : state.users.map(u => u.id);
+                const allGroupParticipantIds = new Set(baseMemberIds);
+                Object.keys(balances).forEach(id => {
+                    if (Math.abs(balances[id] || 0) > 0.009) {
+                        allGroupParticipantIds.add(id);
+                    }
+                });
+                groupTx.forEach(t => {
+                    (t.payers || []).forEach(p => allGroupParticipantIds.add(p.userId));
+                    (t.splits || []).forEach(s => allGroupParticipantIds.add(s.userId));
+                    if (t.from) allGroupParticipantIds.add(t.from);
+                    if (t.to) allGroupParticipantIds.add(t.to);
+                    if (t.collectorId) allGroupParticipantIds.add(t.collectorId);
+                });
+                const memberIds = Array.from(allGroupParticipantIds);
+
                 const debtMatrix = {};
                 memberIds.forEach(m1 => {
                     debtMatrix[m1] = {};
@@ -1388,20 +1463,15 @@ export function ExpenseProvider({ children }) {
                         const splits = t.splits || [];
                         const totalAmt = parseFloat(t.amount) || 1;
 
-                        if (collectorId && memberIds.includes(collectorId)) {
+                        if (collectorId && debtMatrix[collectorId]) {
                             splits.forEach(s => {
                                 if (s.userId !== collectorId && debtMatrix[s.userId] && debtMatrix[s.userId][collectorId] !== undefined) {
                                     debtMatrix[s.userId][collectorId] += s.amount;
                                 }
                             });
                             payers.forEach(p => {
-                                if (p.amount > 0 && p.userId !== collectorId) {
-                                    const ratio = p.amount / totalAmt;
-                                    splits.forEach(s => {
-                                        if (s.userId !== p.userId && debtMatrix[collectorId] && debtMatrix[collectorId][p.userId] !== undefined) {
-                                            debtMatrix[collectorId][p.userId] += s.amount * ratio;
-                                        }
-                                    });
+                                if (p.amount > 0 && p.userId !== collectorId && debtMatrix[collectorId]?.[p.userId] !== undefined) {
+                                    debtMatrix[collectorId][p.userId] += p.amount;
                                 }
                             });
                         } else {
@@ -1453,24 +1523,20 @@ export function ExpenseProvider({ children }) {
     // Derived State: Global Balances across all transactions
     const balances = useMemo(() => {
         const globalBalances = {};
-        state.users.forEach(u => globalBalances[u.id] = 0);
+        state.users.forEach(u => { globalBalances[u.id] = 0; });
 
         (state.transactions || []).forEach(t => {
             if (t.type === 'EXPENSE') {
                 (t.payers || []).forEach(p => {
-                    if (globalBalances[p.userId] !== undefined) {
-                        globalBalances[p.userId] += p.amount;
-                    }
+                    globalBalances[p.userId] = (globalBalances[p.userId] || 0) + p.amount;
                 });
                 (t.splits || []).forEach(s => {
-                    if (globalBalances[s.userId] !== undefined) {
-                        globalBalances[s.userId] -= s.amount;
-                    }
+                    globalBalances[s.userId] = (globalBalances[s.userId] || 0) - s.amount;
                 });
             }
             if (t.type === 'SETTLEMENT') {
-                if (globalBalances[t.from] !== undefined) globalBalances[t.from] += t.amount;
-                if (globalBalances[t.to] !== undefined) globalBalances[t.to] -= t.amount;
+                globalBalances[t.from] = (globalBalances[t.from] || 0) + t.amount;
+                globalBalances[t.to] = (globalBalances[t.to] || 0) - t.amount;
             }
         });
 

@@ -3,6 +3,7 @@ import { useExpenses } from '../store/ExpenseContext';
 import { useModalBackHandler } from '../utils/backButton';
 import { X, Users, Plane, ClipboardList, Home, Heart, Sparkles, Plus, Check, HandCoins, Radio } from 'lucide-react';
 import JoinSharedGroupModal from './JoinSharedGroupModal';
+import multiSync from '../services/multiUserSync';
 
 const GROUP_TYPES = [
     { id: 'trip', label: 'Trip', icon: Plane, defaultColor: '#10b981' },
@@ -124,7 +125,8 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
             });
             onSuccess(groupToEdit.id);
         } else {
-            const newGroupId = addGroup({
+            const secret = enableLiveSync ? multiSync.generateSyncSecret() : null;
+            const groupData = {
                 name: name.trim(),
                 type,
                 icon,
@@ -132,9 +134,15 @@ export default function GroupFormModal({ groupToEdit = null, onClose, onSuccess 
                 members: selectedMembers,
                 simplifyDebts,
                 defaultCollectorId: defaultCollectorId || null,
-            });
+                isShared: !!enableLiveSync,
+                syncSecret: secret,
+            };
+            const newGroupId = addGroup(groupData);
             if (enableLiveSync) {
-                enableGroupSync(newGroupId);
+                enableGroupSync(newGroupId, secret, {
+                    ...groupData,
+                    id: newGroupId,
+                });
             }
             onSuccess(newGroupId);
         }

@@ -6,7 +6,7 @@ import { X, ArrowRight, CheckCircle2 } from 'lucide-react';
 export default function GroupSettleUpModal({ group, onClose, onSuccess }) {
     useModalBackHandler(true, onClose);
     const { state, addSettlement, getGroupPairwiseDebts } = useExpenses();
-    const currentUserId = state.currentUserId;
+    const currentUserId = group?.myMemberId || state.currentUserId;
 
     // Retrieve debts for this group from perspective of current user
     const { debts, netBalance } = getGroupPairwiseDebts(group.id, currentUserId);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import {
     Scale,
@@ -52,10 +52,10 @@ export default function BalancesView() {
         }).format(val);
     };
 
-    const getUserName = (id) => {
+    const getUserName = useCallback((id) => {
         const user = state.users.find(u => u.id === id);
-        return user ? user.name : 'Unknown';
-    };
+        return user ? user.name : (id === 'u_you' ? 'You' : 'Former Member');
+    }, [state.users]);
 
     const activeGroup = (state.groups || []).find(g => g.id === groupFilter);
 
@@ -64,18 +64,32 @@ export default function BalancesView() {
         return getGroupBalances(groupFilter);
     }, [groupFilter, globalBalances, getGroupBalances]);
 
-    const relevantUsers = useMemo(() => {
-        if (activeGroup) {
-            return state.users.filter(u => activeGroup.members.includes(u.id));
-        }
-        return state.users;
-    }, [activeGroup, state.users]);
-
     const relevantTransactions = useMemo(() => {
         if (groupFilter === 'ALL') return state.transactions || [];
         if (groupFilter === 'non-group') return (state.transactions || []).filter(t => !t.groupId || t.groupId === 'non-group');
         return (state.transactions || []).filter(t => t.groupId === groupFilter);
     }, [groupFilter, state.transactions]);
+
+    const relevantUsers = useMemo(() => {
+        const userMap = new Map(state.users.map(u => [u.id, u]));
+        const idSet = new Set();
+        if (activeGroup) {
+            (activeGroup.members || []).forEach(id => idSet.add(id));
+        } else {
+            state.users.forEach(u => idSet.add(u.id));
+        }
+        Object.entries(relevantBalances).forEach(([userId, bal]) => {
+            if (Math.abs(bal) > 0.009) idSet.add(userId);
+        });
+        relevantTransactions.forEach(t => {
+            (t.payers || []).forEach(p => idSet.add(p.userId));
+            (t.splits || []).forEach(s => idSet.add(s.userId));
+            if (t.from) idSet.add(t.from);
+            if (t.to) idSet.add(t.to);
+            if (t.collectorId) idSet.add(t.collectorId);
+        });
+        return Array.from(idSet).map(id => userMap.get(id) || { id, name: getUserName(id) });
+    }, [activeGroup, state.users, relevantBalances, relevantTransactions, getUserName]);
 
     const activeCollectorId = activeGroup?.defaultCollectorId || relevantTransactions.find(t => t.collectorId)?.collectorId || null;
 
@@ -143,7 +157,7 @@ export default function BalancesView() {
                 const splits = t.splits || [];
                 const totalAmt = parseFloat(t.amount) || 1;
 
-                if (collectorId) {
+                if (collectorId && debtMatrix[collectorId]) {
                     // Members owe the collector
                     splits.forEach(s => {
                         if (s.userId !== collectorId && debtMatrix[s.userId] && debtMatrix[s.userId][collectorId] !== undefined) {
@@ -151,15 +165,10 @@ export default function BalancesView() {
                         }
                     });
 
-                    // Collector owes each payer
+                    // Collector owes each payer full upfront payment
                     payers.forEach(p => {
-                        if (p.amount > 0 && p.userId !== collectorId) {
-                            const ratio = p.amount / totalAmt;
-                            splits.forEach(s => {
-                                if (s.userId !== p.userId && debtMatrix[collectorId] && debtMatrix[collectorId][p.userId] !== undefined) {
-                                    debtMatrix[collectorId][p.userId] += s.amount * ratio;
-                                }
-                            });
+                        if (p.amount > 0 && p.userId !== collectorId && debtMatrix[collectorId]?.[p.userId] !== undefined) {
+                            debtMatrix[collectorId][p.userId] += p.amount;
                         }
                     });
                 } else {

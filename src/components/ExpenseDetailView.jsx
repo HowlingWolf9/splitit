@@ -36,6 +36,7 @@ export default function ExpenseDetailView({ expense, onClose, onEdit }) {
     };
 
     const group = (state.groups || []).find(g => g.id === expense.groupId);
+    const effectiveUserId = group?.myMemberId || state.currentUserId;
 
     return (
         <div style={{ padding: '1.25rem 1.5rem', display: 'grid', gap: '1.25rem' }}>
@@ -152,7 +153,7 @@ export default function ExpenseDetailView({ expense, onClose, onEdit }) {
                             </div>
                             <div style={{ fontSize: '0.96rem', fontWeight: 700, color: 'hsl(var(--color-text-main))' }}>
                                 {getUserName(expense.collectorId)}
-                                {expense.collectorId === state.currentUserId && (
+                                {expense.collectorId === effectiveUserId && (
                                     <span style={{ fontSize: '0.78rem', color: 'hsl(var(--color-accent))', marginLeft: '0.35rem' }}>(You)</span>
                                 )}
                             </div>
@@ -193,7 +194,7 @@ export default function ExpenseDetailView({ expense, onClose, onEdit }) {
                         >
                             <span style={{ fontWeight: 600 }}>
                                 {getUserName(split.userId)}
-                                {split.userId === state.currentUserId && (
+                                {split.userId === effectiveUserId && (
                                     <span style={{ fontSize: '0.78rem', color: 'hsl(var(--color-accent))', marginLeft: '0.35rem' }}>(You)</span>
                                 )}
                             </span>
@@ -207,17 +208,17 @@ export default function ExpenseDetailView({ expense, onClose, onEdit }) {
 
             {/* Smart Settle Prompt (When current user owes a split) */}
             {(() => {
-                const mySplit = expense.splits?.find(s => s.userId === state.currentUserId);
-                const amPayer = expense.payers?.some(p => p.userId === state.currentUserId);
+                const mySplit = expense.splits?.find(s => s.userId === effectiveUserId);
+                const amPayer = expense.payers?.some(p => p.userId === effectiveUserId);
                 const singlePayerId = expense.payers?.length === 1 ? expense.payers[0].userId : null;
-                const hasCollector = expense.collectorId && expense.collectorId !== state.currentUserId;
+                const hasCollector = expense.collectorId && expense.collectorId !== effectiveUserId;
                 const canSettle = mySplit && !amPayer && mySplit.amount > 0;
 
                 if (!canSettle) return null;
 
                 const handleQuickSettle = (targetUserId) => {
                     addSettlement(
-                        state.currentUserId,
+                        effectiveUserId,
                         targetUserId,
                         mySplit.amount,
                         new Date().toISOString(),

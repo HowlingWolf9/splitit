@@ -338,10 +338,8 @@ export function buildGroupPayload(state, groupId, senderMemberId = null) {
         settlements: {}
     };
 
-    // Include deleted members that were previously in group
-    Object.entries(state.deletedIds?.members || {}).forEach(([id, ts]) => {
-        if (memberIds.has(id)) scopedDeletedIds.members[id] = ts;
-    });
+    // Include all deleted member tombstones
+    scopedDeletedIds.members = { ...(state.deletedIds?.members || {}) };
 
     // Include deleted expenses and settlements that belonged to this group
     Object.entries(state.deletedIds?.expenses || {}).forEach(([id, ts]) => {
@@ -406,18 +404,56 @@ export function mergeGroupSyncPayload(currentState, payload, myMemberId = null) 
         const remoteTime = new Date(remoteGroup.updatedAt || remoteGroup.createdAt || 0).getTime();
 
         const baseGroup = remoteTime > localTime ? { ...localG, ...remoteGroup } : localG;
+        const localMemberIds = localG.members || [];
+        const remoteMemberIds = remoteGroup.members || [];
+        const combinedMemberIds = new Set([...localMemberIds, ...remoteMemberIds]);
+        if (myMemberId) {
+            combinedMemberIds.add(myMemberId);
+        }
+
+        const filteredMembers = Array.from(combinedMemberIds).filter(mId => {
+            const tomb = mergedDeletedIds.members[mId];
+            if (!tomb) return true;
+            if (myMemberId && mId === myMemberId) return true;
+            const tombTime = new Date(tomb).getTime();
+            const memberObj = (payload.members || []).find(m => m.id === mId) || (currentState.users || []).find(u => u.id === mId);
+            const memberTime = memberObj ? new Date(memberObj.updatedAt || memberObj.createdAt || 0).getTime() : 0;
+            return memberTime > tombTime;
+        });
+
+        const isNewMemberAdded = myMemberId && !localMemberIds.includes(myMemberId);
+        const groupUpdatedAt = isNewMemberAdded ? now : new Date(Math.max(localTime, remoteTime)).toISOString();
+
         mergedGroup = {
             ...baseGroup,
+            members: filteredMembers,
             // Preserve local myMemberId unless specifically chosen
             myMemberId: myMemberId || localG.myMemberId || baseGroup.myMemberId || null,
             syncSecret: localG.syncSecret || remoteGroup.syncSecret || payload.syncSecret || null,
             isShared: true,
-            updatedAt: new Date(Math.max(localTime, remoteTime, Date.now())).toISOString()
+            updatedAt: groupUpdatedAt
         };
         localGroups[existingGroupIndex] = mergedGroup;
     } else {
+        const remoteMemberIds = remoteGroup.members || [];
+        const combinedMemberIds = new Set(remoteMemberIds);
+        if (myMemberId) {
+            combinedMemberIds.add(myMemberId);
+        }
+
+        const filteredMembers = Array.from(combinedMemberIds).filter(mId => {
+            const tomb = mergedDeletedIds.members[mId];
+            if (!tomb) return true;
+            if (myMemberId && mId === myMemberId) return true;
+            const tombTime = new Date(tomb).getTime();
+            const memberObj = (payload.members || []).find(m => m.id === mId) || (currentState.users || []).find(u => u.id === mId);
+            const memberTime = memberObj ? new Date(memberObj.updatedAt || memberObj.createdAt || 0).getTime() : 0;
+            return memberTime > tombTime;
+        });
+
         mergedGroup = {
             ...remoteGroup,
+            members: filteredMembers,
             myMemberId: myMemberId || remoteGroup.myMemberId || null,
             syncSecret: remoteGroup.syncSecret || payload.syncSecret || null,
             isShared: true,
@@ -445,6 +481,19 @@ export function mergeGroupSyncPayload(currentState, payload, myMemberId = null) 
             const localTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
             if (remoteTime > localTime) {
                 userMap.set(remoteUser.id, { ...existing, ...remoteUser });
+            }
+        }
+    });
+
+    // Remove users tombstoned by remote if tombstone is newer/equal to user updatedAt
+    Array.from(userMap.keys()).forEach(userId => {
+        if (userId === currentState.currentUserId) return;
+        const tomb = mergedDeletedIds.members[userId];
+        if (tomb) {
+            const u = userMap.get(userId);
+            const uTime = new Date(u.updatedAt || u.createdAt || 0).getTime();
+            if (new Date(tomb).getTime() >= uTime) {
+                userMap.delete(userId);
             }
         }
     });
@@ -517,7 +566,7 @@ async function createSignedNostrEvent(privKeyHex, kind, tags, content) {
 }
 
 // WEBSOCKET POOL & ACTIVE SUBSCRIPTIONS MANAGER
-class NostrPoolManager {
+export class NostrPoolManager {
     constructor() {
         this.sockets = new Map(); // relayUrl -> WebSocket
         this.subscriptions = new Map(); // subId -> { groupId, syncSecret, onUpdate, onStatusChange }
@@ -699,6 +748,9 @@ class NostrPoolManager {
                 encryptedContent
             );
 
+            // Track event ID before broadcasting to prevent processing our own echo from relays
+            this.lastSeenEventIds.add(event.id);
+
             // Broadcast to all configured relays
             const relays = this.getRelays();
             let sentCount = 0;
@@ -774,12 +826,14 @@ class NostrPoolManager {
                 }
             }, timeoutMs);
 
-            const activeWs = [];
+            const activeListeners = [];
 
             const cleanup = () => {
                 clearTimeout(timer);
-                activeWs.forEach(ws => {
+                activeListeners.forEach(({ ws, handleMessage, handleOpen }) => {
                     try {
+                        if (handleMessage) ws.removeEventListener('message', handleMessage);
+                        if (handleOpen) ws.removeEventListener('open', handleOpen);
                         if (ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify(['CLOSE', subId]));
                         }
@@ -793,8 +847,8 @@ class NostrPoolManager {
                     ws = this.connectRelay(url);
                 }
                 if (!ws) return;
-                activeWs.push(ws);
 
+                let handleOpen = null;
                 const handleMessage = async (e) => {
                     try {
                         const data = JSON.parse(e.data);
@@ -824,14 +878,19 @@ class NostrPoolManager {
                         '#d': [`splitit_${groupId}`]
                     }]));
                 } else {
-                    ws.addEventListener('open', () => {
-                        ws.send(JSON.stringify(['REQ', subId, {
-                            kinds: [30078],
-                            authors: [nostrPubKeyHex],
-                            '#d': [`splitit_${groupId}`]
-                        }]));
-                    }, { once: true });
+                    handleOpen = () => {
+                        try {
+                            ws.send(JSON.stringify(['REQ', subId, {
+                                kinds: [30078],
+                                authors: [nostrPubKeyHex],
+                                '#d': [`splitit_${groupId}`]
+                            }]));
+                        } catch (err) { void err; }
+                    };
+                    ws.addEventListener('open', handleOpen, { once: true });
                 }
+
+                activeListeners.push({ ws, handleMessage, handleOpen });
             });
         });
     }

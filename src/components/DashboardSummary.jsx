@@ -52,7 +52,7 @@ export default function DashboardSummary() {
                 ? `+${formatMoney(currentUserGroupSummary.amount)}`
                 : currentUserGroupSummary.status === 'owe'
                     ? `-${formatMoney(currentUserGroupSummary.amount)}`
-                    : '₹0.00',
+                    : formatMoney(0),
             accent: currentUserGroupSummary.status === 'owed'
                 ? 'hsl(var(--color-success))'
                 : currentUserGroupSummary.status === 'owe'
@@ -89,7 +89,7 @@ export default function DashboardSummary() {
                 ? `+${formatMoney(currentUserGroupSummary.amount)}`
                 : currentUserGroupSummary.status === 'owe'
                     ? `-${formatMoney(currentUserGroupSummary.amount)}`
-                    : '₹0.00',
+                    : formatMoney(0),
             accent: currentUserGroupSummary.status === 'owed'
                 ? 'hsl(var(--color-success))'
                 : currentUserGroupSummary.status === 'owe'

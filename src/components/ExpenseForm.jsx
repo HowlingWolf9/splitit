@@ -24,7 +24,7 @@ const setStorageItem = (key, val) => {
 
 export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = null, defaultGroupId = null, initialData = null, editingExpense = null }) {
     useModalBackHandler(true, onCancel);
-    const { state, addExpense, updateExpense, addUser, deleteTransaction } = useExpenses();
+    const { state, addExpense, updateExpense, addUser, addMemberToGroup, deleteTransaction } = useExpenses();
     const expenseToEdit = editingTransaction || editingExpense || initialData;
     const isEditing = !!expenseToEdit;
     const descInputRef = useRef(null);
@@ -182,7 +182,16 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
         if (saved && (state.groups || []).some(g => g.id === saved)) return saved;
         return '';
     });
-    const [showAllUsers, setShowAllUsers] = useState(false);
+    const [showAllUsers, setShowAllUsers] = useState(() => {
+        if (!expenseToEdit) return false;
+        const targetGroupId = expenseToEdit.groupId || '';
+        const grp = (state.groups || []).find(g => g.id === targetGroupId);
+        if (!grp) return true;
+        const memberSet = new Set(grp.members || []);
+        const hasExternalPayer = (expenseToEdit.payers || []).some(p => p.amount > 0 && !memberSet.has(p.userId));
+        const hasExternalSplit = (expenseToEdit.splits || []).some(s => s.amount > 0 && !memberSet.has(s.userId));
+        return hasExternalPayer || hasExternalSplit;
+    });
 
     const [desc, setDesc] = useState(() => expenseToEdit?.description || '');
     const [amount, setAmount] = useState(() => expenseToEdit?.amount != null ? expenseToEdit.amount.toString() : '');
@@ -206,19 +215,6 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
     const [recentAdded, setRecentAdded] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
 
-    // Determine available users based on selected group
-    const activeGroup = (state.groups || []).find(g => g.id === selectedGroupId);
-    const availableUsers = useMemo(() => {
-        if (activeGroup && !showAllUsers) {
-            return state.users.filter(u => activeGroup.members.includes(u.id));
-        }
-        return state.users;
-    }, [activeGroup, showAllUsers, state.users]);
-
-    const sortedUsers = useMemo(() => {
-        return [...availableUsers].sort((a, b) => a.name.localeCompare(b.name));
-    }, [availableUsers]);
-
     // Primary Collector (Optional)
     const [collectorId, setCollectorId] = useState(() => {
         if (expenseToEdit?.collectorId) return expenseToEdit.collectorId;
@@ -228,20 +224,52 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
 
     // SINGLE or MULTI payer
     const [payerMode, setPayerMode] = useState(() => extractPayerMode(expenseToEdit));
-    const [singlePayer, setSinglePayer] = useState(() => extractSinglePayer(expenseToEdit, sortedUsers));
+    const [singlePayer, setSinglePayer] = useState(() => extractSinglePayer(expenseToEdit, state.users));
     const [multiPayers, setMultiPayers] = useState(() => extractMultiPayers(expenseToEdit));
 
     const [splitMode, setSplitMode] = useState(() => extractSplitMode(expenseToEdit));
-    const [splitSelected, setSplitSelected] = useState(() => extractSplitSelected(expenseToEdit, activeGroup));
+    const [splitSelected, setSplitSelected] = useState(() => extractSplitSelected(expenseToEdit, (state.groups || []).find(g => g.id === selectedGroupId)));
     const [splitShares, setSplitShares] = useState(() => extractSplitShares(expenseToEdit));
     const [splitAmounts, setSplitAmounts] = useState(() => extractSplitAmounts(expenseToEdit));
     const [splitAmountsManual, setSplitAmountsManual] = useState(() => extractSplitAmountsManual(expenseToEdit));
+
+    // Determine available users based on selected group & active participants
+    const activeGroup = (state.groups || []).find(g => g.id === selectedGroupId);
+    const availableUsers = useMemo(() => {
+        if (activeGroup && !showAllUsers) {
+            const memberSet = new Set(activeGroup.members || []);
+            if (collectorId) memberSet.add(collectorId);
+            if (singlePayer) memberSet.add(singlePayer);
+            Object.entries(multiPayers || {}).forEach(([uid, amt]) => {
+                if (parseFloat(amt) > 0) memberSet.add(uid);
+            });
+            Object.entries(splitSelected || {}).forEach(([uid, isSelected]) => {
+                if (isSelected) memberSet.add(uid);
+            });
+            return state.users.filter(u => memberSet.has(u.id));
+        }
+        return state.users;
+    }, [activeGroup, showAllUsers, state.users, collectorId, singlePayer, multiPayers, splitSelected]);
+
+    const sortedUsers = useMemo(() => {
+        return [...availableUsers].sort((a, b) => a.name.localeCompare(b.name));
+    }, [availableUsers]);
 
     // Synchronize if editing another expense without remounting
     const lastEditedIdRef = useRef(expenseToEdit?.id);
     useEffect(() => {
         if (expenseToEdit && expenseToEdit.id !== lastEditedIdRef.current) {
             lastEditedIdRef.current = expenseToEdit.id;
+            const targetGroupId = expenseToEdit.groupId || '';
+            const grp = (state.groups || []).find(g => g.id === targetGroupId);
+            if (grp) {
+                const memberSet = new Set(grp.members || []);
+                const hasExternal = (expenseToEdit.payers || []).some(p => p.amount > 0 && !memberSet.has(p.userId)) ||
+                                    (expenseToEdit.splits || []).some(s => s.amount > 0 && !memberSet.has(s.userId));
+                if (hasExternal) {
+                    setShowAllUsers(true);
+                }
+            }
             setDesc(expenseToEdit.description || '');
             setAmount(expenseToEdit.amount != null ? expenseToEdit.amount.toString() : '');
             setCategory(expenseToEdit.category || '');
@@ -249,7 +277,7 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
             if (expenseToEdit.groupId !== undefined) setSelectedGroupId(expenseToEdit.groupId || '');
             if (expenseToEdit.collectorId !== undefined) setCollectorId(expenseToEdit.collectorId || '');
             setPayerMode(extractPayerMode(expenseToEdit));
-            setSinglePayer(extractSinglePayer(expenseToEdit, sortedUsers));
+            setSinglePayer(extractSinglePayer(expenseToEdit, state.users));
             setMultiPayers(extractMultiPayers(expenseToEdit));
             setSplitMode(extractSplitMode(expenseToEdit));
             setSplitSelected(extractSplitSelected(expenseToEdit, (state.groups || []).find(g => g.id === expenseToEdit.groupId)));
@@ -281,6 +309,17 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
                 setCollectorId('');
             }
         }
+    };
+
+    const handleInlineAddUser = (name) => {
+        const newId = addUser(name);
+        if (newId) {
+            if (activeGroup && addMemberToGroup) {
+                addMemberToGroup(activeGroup.id, newId);
+            }
+            setSplitSelected(prev => ({ ...prev, [newId]: true }));
+        }
+        return newId;
     };
 
     const totalAmount = parseFloat(amount) || 0;
@@ -702,7 +741,7 @@ export default function ExpenseForm({ onCancel, onSuccess, editingTransaction = 
                     setSplitAmounts={setSplitAmounts}
                     splitAmountsManual={splitAmountsManual}
                     setSplitAmountsManual={setSplitAmountsManual}
-                    addUser={addUser}
+                    addUser={handleInlineAddUser}
                     totalAmount={totalAmount}
                     currency={state.currency}
                     isSplitValid={isSplitValid}

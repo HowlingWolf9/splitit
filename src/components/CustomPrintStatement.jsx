@@ -706,7 +706,7 @@ export default function CustomPrintStatement({
                                         )}
                                         {m.status === 'SETTLED' && (
                                             <span style={{ color: '#6b7280' }}>
-                                                Settled (₹0.00)
+                                                Settled ({formatMoney(0)})
                                             </span>
                                         )}
                                     </td>

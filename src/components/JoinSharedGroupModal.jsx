@@ -115,7 +115,7 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                 memberIdToUse = newId;
             }
 
-            const joinRes = await joinSharedGroup(inviteCodeInput.trim(), memberIdToUse);
+            const joinRes = await joinSharedGroup(inviteCodeInput.trim(), memberIdToUse, fetchedData);
             if (joinRes.success) {
                 if (onSuccess) onSuccess(joinRes.groupId);
             } else {

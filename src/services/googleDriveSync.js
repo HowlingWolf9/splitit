@@ -663,6 +663,31 @@ export function parseTokenFromHash(input) {
     const error = hashParams.get('error') || searchParams.get('error');
     const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
 
+    const returnedState = hashParams.get('state') || searchParams.get('state');
+    let expectedState = null;
+    try {
+        if (typeof window !== 'undefined') {
+            expectedState = sessionStorage.getItem('splitit_oauth_state');
+        }
+    } catch {
+        // ignore
+    }
+
+    if (expectedState && returnedState && returnedState !== expectedState) {
+        return {
+            error: 'OAuth state mismatch (potential CSRF attack)'
+        };
+    }
+    if (expectedState && returnedState && returnedState === expectedState) {
+        try {
+            if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('splitit_oauth_state');
+            }
+        } catch {
+            // ignore
+        }
+    }
+
     if (accessToken) {
         return {
             accessToken,
@@ -1005,6 +1030,23 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         return;
     }
 
+    let oauthState = '';
+    try {
+        if (typeof window !== 'undefined') {
+            const arr = new Uint8Array(16);
+            if (window.crypto?.getRandomValues) {
+                window.crypto.getRandomValues(arr);
+                oauthState = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+            } else {
+                oauthState = Math.random().toString(36).substring(2) + Date.now().toString(36);
+            }
+            sessionStorage.setItem('splitit_oauth_state', oauthState);
+        }
+    } catch {
+        // ignore
+    }
+    const stateParam = oauthState ? `&state=${encodeURIComponent(oauthState)}` : '';
+
     // 0. Tauri desktop loopback flow (opens Google OAuth in system default browser)
     const isTauriEnv = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
     if (isTauriEnv) {
@@ -1019,7 +1061,8 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
                 `response_type=token&` +
                 `scope=${encodeURIComponent(OAUTH_SCOPE)}&` +
                 `include_granted_scopes=true&` +
-                `prompt=${encodeURIComponent(promptMode)}`;
+                `prompt=${encodeURIComponent(promptMode)}` +
+                stateParam;
 
             await openUrl(authUrl);
             return;
@@ -1035,7 +1078,8 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
         `response_type=token&` +
         `scope=${encodeURIComponent(OAUTH_SCOPE)}&` +
         `include_granted_scopes=true&` +
-        `prompt=${encodeURIComponent(promptMode)}`;
+        `prompt=${encodeURIComponent(promptMode)}` +
+        stateParam;
 
     // 1. Native Capacitor environment: Launch Google OAuth in Chrome Custom Tabs
     // Shares the user's active Google account from their default browser (Chrome)
@@ -1124,6 +1168,7 @@ export async function initiateGoogleAuth({ clientId = getClientId(), onToken, on
 
     // Listen for cross-window messages from the popup
     const messageListener = (event) => {
+        if (typeof window !== 'undefined' && event.origin !== window.location.origin) return;
         if (event.data?.type === 'SPLITIT_GDRIVE_AUTH_TOKEN' && event.data.hash) {
             window.removeEventListener('message', messageListener);
             const tokenData = parseTokenFromHash(event.data.hash);

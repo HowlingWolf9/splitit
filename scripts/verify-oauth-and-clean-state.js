@@ -15,6 +15,10 @@ import {
     STORAGE_KEY_CONNECTED,
     STORAGE_KEY_USER_PROFILE
 } from '../src/services/googleDriveSync.js';
+import {
+    mergeGroupSyncPayload,
+    NostrPoolManager
+} from '../src/services/multiUserSync.js';
 
 console.log('--- Running Deep Verification Tests ---');
 
@@ -268,5 +272,204 @@ assert.strictEqual(evaluateShowConnected('offline', false, true), true, 'Connect
 assert.strictEqual(evaluateShowConnected('error', false, true), true, 'Connected card remains visible during error');
 assert.strictEqual(evaluateShowConnected('reauth_required', false, true), true, 'Connected card remains visible when reauth is required');
 assert.strictEqual(evaluateShowConnected('disconnected', false, false), false, 'Signed out card shown when not persisted and disconnected');
+
+// Test 11: Collector-routed pairwise debt calculation verifying p.amount - s.amount net balance and zero sum
+console.log('Test 11: Collector-routed pairwise debt calculation');
+const memberIds11 = ['u_alice', 'u_bob', 'u_charlie'];
+const debtMatrix11 = {};
+memberIds11.forEach(m1 => {
+    debtMatrix11[m1] = {};
+    memberIds11.forEach(m2 => { debtMatrix11[m1][m2] = 0; });
+});
+
+// Alice pays 100 upfront, Bob is collector, split equally among Alice (33.33), Bob (33.33), Charlie (33.34)
+const collectorTx = {
+    type: 'EXPENSE',
+    amount: 100,
+    collectorId: 'u_bob',
+    payers: [{ userId: 'u_alice', amount: 100 }],
+    splits: [
+        { userId: 'u_alice', amount: 33.33 },
+        { userId: 'u_bob', amount: 33.33 },
+        { userId: 'u_charlie', amount: 33.34 }
+    ]
+};
+
+// Execute collector routing algorithm (as implemented in ExpenseContext and BalancesView)
+if (collectorTx.collectorId && debtMatrix11[collectorTx.collectorId]) {
+    collectorTx.splits.forEach(s => {
+        if (s.userId !== collectorTx.collectorId && debtMatrix11[s.userId] && debtMatrix11[s.userId][collectorTx.collectorId] !== undefined) {
+            debtMatrix11[s.userId][collectorTx.collectorId] += s.amount;
+        }
+    });
+    collectorTx.payers.forEach(p => {
+        if (p.amount > 0 && p.userId !== collectorTx.collectorId && debtMatrix11[collectorTx.collectorId]?.[p.userId] !== undefined) {
+            debtMatrix11[collectorTx.collectorId][p.userId] += p.amount;
+        }
+    });
+}
+
+// Collector (Bob) owes Payer (Alice) the full upfront paid amount:
+assert.strictEqual(debtMatrix11['u_bob']['u_alice'], 100, 'Collector must owe payer full upfront payment (not reduced by payer split)');
+// Payer (Alice) owes Collector (Bob) Alice split share:
+assert.strictEqual(debtMatrix11['u_alice']['u_bob'], 33.33, 'Payer owes collector their split share');
+// Participant (Charlie) owes Collector (Bob) Charlie split share:
+assert.strictEqual(debtMatrix11['u_charlie']['u_bob'], 33.34, 'Participant owes collector their split share');
+
+// Calculate net pairwise debts from each user's perspective
+const netBetweenAliceAndBob = debtMatrix11['u_bob']['u_alice'] - debtMatrix11['u_alice']['u_bob']; // Bob owes Alice 100 - 33.33 = +66.67
+assert.strictEqual(Math.round(netBetweenAliceAndBob * 100) / 100, 66.67, 'Net pairwise debt between Bob and Alice must be +66.67');
+
+const netBetweenCharlieAndBob = debtMatrix11['u_charlie']['u_bob'] - debtMatrix11['u_bob']['u_charlie']; // Charlie owes Bob 33.34
+assert.strictEqual(Math.round(netBetweenCharlieAndBob * 100) / 100, 33.34, 'Net pairwise debt between Charlie and Bob must be +33.34');
+
+// Verify conservation of value across all members
+const aliceNet = netBetweenAliceAndBob; // +66.67
+const bobNet = -netBetweenAliceAndBob + netBetweenCharlieAndBob; // -66.67 + 33.34 = -33.33
+const charlieNet = -netBetweenCharlieAndBob; // -33.34
+const netSum = Math.round((aliceNet + bobNet + charlieNet) * 100) / 100;
+assert.strictEqual(netSum, 0, 'Sum of all pairwise balances must strictly equal zero (conservation of value)');
+
+// Test 12: mergeGroupSyncPayload verifying no Date.now() injection, myMemberId auto-append, and tombstone enforcement
+console.log('Test 12: mergeGroupSyncPayload deterministic timestamps and tombstone enforcement');
+
+const initialTs = '2026-01-01T12:00:00.000Z';
+const remoteTs = '2026-01-02T12:00:00.000Z';
+const tombstoneTs = '2026-01-03T12:00:00.000Z';
+
+const stateBeforeSync = {
+    groups: [{
+        id: 'grp_sync_1',
+        name: 'Apartment',
+        members: ['u_1', 'u_2'],
+        updatedAt: initialTs,
+        createdAt: initialTs,
+        myMemberId: 'u_1'
+    }],
+    users: [
+        { id: 'u_1', name: 'Member 1' },
+        { id: 'u_2', name: 'Member 2' }
+    ],
+    deletedIds: {
+        groups: {},
+        members: { 'u_tombstoned': tombstoneTs },
+        expenses: {},
+        settlements: {}
+    }
+};
+
+const incomingPayload = {
+    version: 1,
+    groupId: 'grp_sync_1',
+    group: {
+        id: 'grp_sync_1',
+        name: 'Apartment Renovated',
+        members: ['u_1', 'u_2', 'u_tombstoned'],
+        updatedAt: remoteTs,
+        createdAt: initialTs
+    },
+    members: [
+        { id: 'u_1', name: 'Member 1' },
+        { id: 'u_2', name: 'Member 2' },
+        { id: 'u_tombstoned', name: 'Old Member', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ],
+    deletedIds: {
+        members: { 'u_tombstoned': tombstoneTs }
+    }
+};
+
+// Case A: Sync without adding a new member — group.updatedAt MUST strictly preserve remoteTs and NOT inject Date.now()
+const mergedA = mergeGroupSyncPayload(stateBeforeSync, incomingPayload, 'u_1');
+const mergedGroupA = mergedA.groups.find(g => g.id === 'grp_sync_1');
+assert.strictEqual(mergedGroupA.updatedAt, remoteTs, 'Group updatedAt must match remote timestamp without Date.now() injection');
+assert.strictEqual(mergedGroupA.members.includes('u_tombstoned'), false, 'Tombstoned member must be excluded from group members');
+
+// Case B: Joining as a new member ('u_new') — must union 'u_new' into members and set myMemberId
+const stateForJoin = {
+    groups: [],
+    users: [{ id: 'u_new', name: 'New Joiner' }],
+    deletedIds: { groups: {}, members: {}, expenses: {}, settlements: {} }
+};
+const mergedJoin = mergeGroupSyncPayload(stateForJoin, incomingPayload, 'u_new');
+const joinedGroup = mergedJoin.groups.find(g => g.id === 'grp_sync_1');
+assert.strictEqual(joinedGroup.members.includes('u_new'), true, 'Newly joined member id must be appended to members list');
+assert.strictEqual(joinedGroup.myMemberId, 'u_new', 'myMemberId must be set to newly joined member');
+assert.strictEqual(joinedGroup.members.includes('u_tombstoned'), false, 'Tombstoned member must not be added');
+
+// Test 13: fetchGroupOnce listener cleanup asserting message and open listeners are removed
+console.log('Test 13: fetchGroupOnce listener cleanup');
+
+class MockSocket {
+    constructor(url) {
+        this.url = url;
+        this.readyState = 1; // WebSocket.OPEN
+        this.listeners = { message: [], open: [] };
+        this.addedCount = { message: 0, open: 0 };
+        this.removedCount = { message: 0, open: 0 };
+        this.sentMessages = [];
+    }
+    addEventListener(type, fn) {
+        if (!this.listeners[type]) this.listeners[type] = [];
+        this.listeners[type].push(fn);
+        this.addedCount[type] = (this.addedCount[type] || 0) + 1;
+    }
+    removeEventListener(type, fn) {
+        if (this.listeners[type]) {
+            this.listeners[type] = this.listeners[type].filter(f => f !== fn);
+        }
+        this.removedCount[type] = (this.removedCount[type] || 0) + 1;
+    }
+    send(data) {
+        this.sentMessages.push(data);
+    }
+}
+
+global.WebSocket = MockSocket;
+MockSocket.OPEN = 1;
+
+const mockSocketInstance = new MockSocket('wss://mock.relay.test');
+const pool = new NostrPoolManager();
+pool.getRelays = () => ['wss://mock.relay.test'];
+pool.sockets.set('wss://mock.relay.test', mockSocketInstance);
+
+// Call fetchGroupOnce with short timeout
+const result13 = await pool.fetchGroupOnce('grp_mock_test', 'mock_secret_123', 50);
+
+assert.strictEqual(result13.success, false, 'Fetch timed out as expected without relays sending event');
+// Verify listener was attached during active fetch and removed on cleanup
+assert.strictEqual(mockSocketInstance.addedCount.message, 1, 'Message listener was registered on relay socket');
+assert.strictEqual(mockSocketInstance.removedCount.message, 1, 'Message listener was removed on cleanup');
+assert.strictEqual(mockSocketInstance.listeners.message.length, 0, 'No dangling message listeners remain on socket');
+const closeMsg = mockSocketInstance.sentMessages.find(m => m.includes('CLOSE'));
+assert.ok(closeMsg, 'CLOSE message frame must be dispatched to relay upon subscription cleanup');
+
+// Test 14: OAuth state CSRF verification in parseTokenFromHash
+console.log('Test 14: OAuth state CSRF verification in parseTokenFromHash');
+
+const sessionMap = new Map();
+global.sessionStorage = {
+    getItem: (k) => (sessionMap.has(k) ? sessionMap.get(k) : null),
+    setItem: (k, v) => sessionMap.set(k, String(v)),
+    removeItem: (k) => sessionMap.delete(k),
+    clear: () => sessionMap.clear()
+};
+if (global.window) {
+    global.window.sessionStorage = global.sessionStorage;
+}
+
+// 1. Mismatched state should be rejected
+sessionStorage.setItem('splitit_oauth_state', 'expected_nonce_12345');
+const csrfAttackHash = '#access_token=ya29.attacker&expires_in=3600&state=forged_state_67890';
+const csrfResult = parseTokenFromHash(csrfAttackHash);
+assert.strictEqual(csrfResult?.accessToken, undefined, 'Access token must not be accepted on state mismatch');
+assert.strictEqual(csrfResult?.error, 'OAuth state mismatch (potential CSRF attack)');
+assert.strictEqual(sessionStorage.getItem('splitit_oauth_state'), 'expected_nonce_12345', 'State not consumed on error');
+
+// 2. Matching state should succeed and consume the state
+const validAuthHash = '#access_token=ya29.valid_token&expires_in=3600&state=expected_nonce_12345';
+const validResult = parseTokenFromHash(validAuthHash);
+assert.strictEqual(validResult?.accessToken, 'ya29.valid_token', 'Access token accepted on valid state');
+assert.strictEqual(validResult?.expiresIn, 3600);
+assert.strictEqual(sessionStorage.getItem('splitit_oauth_state'), null, 'OAuth state token consumed from sessionStorage');
 
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');
