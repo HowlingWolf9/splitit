@@ -281,16 +281,24 @@ function expenseReducer(state, action) {
                 importedGroups.some(g => g.id === targetGroupId)
             ) ? targetGroupId : null;
 
-            return {
-                ...state,
-                ...action.payload,
+            // Construct new clean state - purge legacy expenses/settlements to prevent ghost records
+            const newState = {
                 users: importedUsers,
                 groups: importedGroups,
                 transactions: importedTransactions,
                 deletedIds: importedDeletedIds,
+                currency: action.payload.currency || state.currency || 'INR',
                 currentUserId: action.payload.currentUserId || (importedUsers[0]?.id || 'u_you'),
                 selectedGroupId: validSelectedGroupId
             };
+
+            try {
+                localStorage.setItem('expense_manager_data', JSON.stringify(newState));
+            } catch (e) {
+                console.error('Failed saving imported data to localStorage:', e);
+            }
+
+            return newState;
         }
         default:
             return state;
@@ -507,6 +515,7 @@ export function ExpenseProvider({ children }) {
     stateRef.current = state;
     const isApplyingDriveMergeRef = useRef(false);
     const isApplyingRemoteGroupSyncRef = useRef(false);
+    const isImportSyncLockRef = useRef(false);
 
     const setIsAutoSyncEnabled = useCallback((enabled) => {
         setIsAutoSyncEnabledState(enabled);
@@ -520,6 +529,7 @@ export function ExpenseProvider({ children }) {
 
     // Perform bidirectional synchronization
     const syncNow = useCallback(async () => {
+        if (isImportSyncLockRef.current) return;
         if (isSyncingRef.current) return;
         if (!navigator.onLine) {
             setSyncStatus('offline');
@@ -845,6 +855,7 @@ export function ExpenseProvider({ children }) {
     // Automatic pull on launch and window focus
     useEffect(() => {
         const handleFocus = () => {
+            if (isImportSyncLockRef.current) return;
             if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine && !isSyncingRef.current) {
                 syncNow();
             }
@@ -861,6 +872,7 @@ export function ExpenseProvider({ children }) {
         if (!hasMountedLaunchRef.current) {
             hasMountedLaunchRef.current = true;
             launchTimer = setTimeout(() => {
+                if (isImportSyncLockRef.current) return;
                 if (isAutoSyncEnabled && gdrive.isAuthenticated() && navigator.onLine) {
                     syncNow();
                 }
@@ -881,6 +893,8 @@ export function ExpenseProvider({ children }) {
             lastSyncedHashRef.current = gdrive.computeStateHash(state);
             return;
         }
+
+        if (isImportSyncLockRef.current) return;
 
         if (isApplyingDriveMergeRef.current) {
             isApplyingDriveMergeRef.current = false;
@@ -1631,20 +1645,43 @@ export function ExpenseProvider({ children }) {
         mode = 'REPLACE', // 'REPLACE' | 'MERGE'
         cloudAction = 'OVERWRITE', // 'OVERWRITE' | 'MERGE' | 'PAUSE'
         targetUserId = null,
-        createSafetyBackup = true
+        createSafetyBackup = true,
+        exportSafetyFile = false
     }) => {
+        // Clear any pending debounced sync timers and acquire import sync lock
+        if (syncTimerRef.current) {
+            clearTimeout(syncTimerRef.current);
+            syncTimerRef.current = null;
+        }
+        isImportSyncLockRef.current = true;
+        isApplyingDriveMergeRef.current = true;
+
         try {
             if (!data || typeof data !== 'object') {
                 throw new Error('Invalid backup data provided');
             }
 
-            // 1. Pre-import safety export if requested
+            // 1. Pre-import internal safety snapshot (instant & non-blocking)
             if (createSafetyBackup) {
+                try {
+                    const currentSnapshot = exportData();
+                    localStorage.setItem('splitit_pre_import_snapshot', JSON.stringify({
+                        timestamp: new Date().toISOString(),
+                        snapshot: currentSnapshot
+                    }));
+                } catch (e) {
+                    console.warn('Failed saving internal safety snapshot:', e);
+                }
+            }
+
+            // Optional external file export if explicitly requested
+            if (exportSafetyFile) {
                 try {
                     const currentSnapshot = exportData();
                     const dateStr = new Date().toISOString().split('T')[0];
                     const safetyRes = await exportBackupJson(currentSnapshot, `splitit-safety-backup-${dateStr}.json`);
                     if (safetyRes?.canceled) {
+                        isImportSyncLockRef.current = false;
                         return {
                             success: false,
                             canceled: true,
@@ -1652,10 +1689,11 @@ export function ExpenseProvider({ children }) {
                         };
                     }
                 } catch (e) {
-                    console.warn('Safety backup failed or was canceled:', e);
+                    console.warn('Safety backup file export failed:', e);
+                    isImportSyncLockRef.current = false;
                     return {
                         success: false,
-                        error: 'Failed to create safety backup: ' + (e.message || 'Export error')
+                        error: 'Failed to create safety backup file: ' + (e.message || 'Export error')
                     };
                 }
             }
@@ -1724,6 +1762,10 @@ export function ExpenseProvider({ children }) {
                 currentUserId: targetUserId || rawPayload.currentUserId || (normalizedUsers[0]?.id || state.currentUserId)
             };
 
+            // Remove legacy keys
+            delete normalizedData.expenses;
+            delete normalizedData.settlements;
+
             let resultingState = normalizedData;
 
             if (mode === 'MERGE') {
@@ -1745,7 +1787,8 @@ export function ExpenseProvider({ children }) {
             }
 
             // 3. Cloud sync action (when authenticated with Google Drive)
-            if (gdrive.isAuthenticated()) {
+            const isDriveConnected = gdrive.isAuthenticated() || gdrive.isSessionPersisted();
+            if (isDriveConnected) {
                 if (cloudAction === 'PAUSE') {
                     if (syncTimerRef.current) {
                         clearTimeout(syncTimerRef.current);
@@ -1753,9 +1796,17 @@ export function ExpenseProvider({ children }) {
                     }
                     isApplyingDriveMergeRef.current = true;
                     setIsAutoSyncEnabled(false);
+                    isImportSyncLockRef.current = false;
                 } else if (cloudAction === 'OVERWRITE') {
                     try {
-                        const token = gdrive.getAccessToken();
+                        let token = gdrive.getAccessToken();
+                        if (!token && gdrive.isSessionPersisted()) {
+                            const restored = await gdrive.trySilentRestore();
+                            if (restored) {
+                                token = gdrive.getAccessToken();
+                            }
+                        }
+
                         if (token) {
                             let fileId = null;
                             try {
@@ -1794,17 +1845,25 @@ export function ExpenseProvider({ children }) {
                         }
                     } catch (cloudErr) {
                         console.error('Failed to overwrite Google Drive cloud data:', cloudErr);
+                    } finally {
+                        isImportSyncLockRef.current = false;
                     }
                 } else if (cloudAction === 'MERGE') {
+                    isImportSyncLockRef.current = false;
                     setTimeout(() => {
                         syncNow();
                     }, 500);
+                } else {
+                    isImportSyncLockRef.current = false;
                 }
+            } else {
+                isImportSyncLockRef.current = false;
             }
 
             return { success: true, count: normalizedTransactions.length };
         } catch (error) {
             console.error('importBackupAdvanced error:', error);
+            isImportSyncLockRef.current = false;
             return {
                 success: false,
                 error: error.message || 'Failed to import backup'

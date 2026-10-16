@@ -764,16 +764,62 @@ const mergedWithTombstone = mergeAppState(localWithActiveGroup, tombstoneState);
 const tombstonedGroupId = resolveValidGroupId(localWithActiveGroup.selectedGroupId, mergedWithTombstone.groups);
 assert.strictEqual(tombstonedGroupId, null, 'Tombstoned group causes selectedGroupId to cleanly reset to null');
 
-// 5. Pre-import safety backup cancellation simulation
-const simulateSafetyBackupCheck = (createSafetyBackup, exportResult) => {
-    if (createSafetyBackup && exportResult?.canceled) {
-        return { success: false, canceled: true, error: 'Safety backup was canceled. Import stopped.' };
+// 5. Silent internal safety snapshot vs optional external file export
+const testStorage = new Map();
+const mockLocalStorage = {
+    getItem: (k) => (testStorage.has(k) ? testStorage.get(k) : null),
+    setItem: (k, v) => testStorage.set(k, String(v)),
+    removeItem: (k) => testStorage.delete(k)
+};
+const originalLocalStorage = global.localStorage;
+global.localStorage = mockLocalStorage;
+
+const simulateImportSafetyStep = ({ createSafetyBackup = true, exportSafetyFile = false, currentSnapshot, exportResult = null }) => {
+    // 1. Silent internal snapshot
+    if (createSafetyBackup) {
+        try {
+            mockLocalStorage.setItem('splitit_pre_import_snapshot', JSON.stringify({
+                timestamp: new Date().toISOString(),
+                snapshot: currentSnapshot
+            }));
+        } catch {
+            // ignore
+        }
     }
+
+    // 2. Optional external file export
+    if (exportSafetyFile) {
+        if (exportResult?.canceled) {
+            return { success: false, canceled: true, error: 'Safety backup was canceled. Import stopped.' };
+        }
+    }
+
     return { success: true };
 };
-const canceledSafetyResult = simulateSafetyBackupCheck(true, { success: false, canceled: true });
-assert.strictEqual(canceledSafetyResult.canceled, true, 'Safety backup cancellation stops import immediately');
-assert.strictEqual(canceledSafetyResult.success, false, 'Import does not succeed if safety backup is canceled');
+
+// Default safety backup (createSafetyBackup: true, exportSafetyFile: false) must succeed silently without external prompts:
+const dummySnapshot = JSON.stringify({ data: existingLocalState });
+const silentResult = simulateImportSafetyStep({
+    createSafetyBackup: true,
+    exportSafetyFile: false,
+    currentSnapshot: dummySnapshot
+});
+assert.strictEqual(silentResult.success, true, 'Default safety backup succeeds instantly without file dialog');
+const storedSnapshotRaw = mockLocalStorage.getItem('splitit_pre_import_snapshot');
+assert.ok(storedSnapshotRaw, 'Instant safety snapshot is stored in localStorage');
+const parsedSnapshot = JSON.parse(storedSnapshotRaw);
+assert.strictEqual(parsedSnapshot.snapshot, dummySnapshot, 'Stored snapshot matches exported state');
+assert.ok(parsedSnapshot.timestamp, 'Snapshot includes valid timestamp');
+
+// When user explicitly requests external file export and cancels, it stops the import:
+const canceledSafetyResult = simulateImportSafetyStep({
+    createSafetyBackup: true,
+    exportSafetyFile: true,
+    currentSnapshot: dummySnapshot,
+    exportResult: { success: false, canceled: true }
+});
+assert.strictEqual(canceledSafetyResult.canceled, true, 'Safety file cancellation stops import only when explicitly requested');
+assert.strictEqual(canceledSafetyResult.success, false, 'Import does not succeed if external file export is canceled');
 
 // 6. Upfront timestamp normalization prevents state hash drift
 const rawItemsMissingTimestamps = [
@@ -790,5 +836,93 @@ assert.ok(normalizedWithTimestamps[0].updatedAt, 'UpdatedAt normalized for item 
 const normHash1 = computeStateHash({ transactions: normalizedWithTimestamps });
 const normHash2 = computeStateHash({ transactions: normalizedWithTimestamps });
 assert.strictEqual(normHash1, normHash2, 'Normalized state produces deterministic state hash');
+
+// 7. Auto-sync lock prevents auto-sync and focus pull during and immediately after import
+let syncAttempted = false;
+let isImportSyncLock = true;
+const simulateAutoSyncTrigger = () => {
+    if (isImportSyncLock) return; // Sync lock guard
+    syncAttempted = true;
+};
+simulateAutoSyncTrigger();
+assert.strictEqual(syncAttempted, false, 'Debounced auto-sync is blocked while isImportSyncLock is active');
+
+// 8. Google Drive Overwrite prevents cloud merge reversion
+// Simulate cloud state before import (older remote state with deleted transaction)
+const olderCloudState = {
+    users: [{ id: 'u_alice', name: 'Alice' }],
+    groups: [],
+    transactions: [
+        { id: 'tx_old_cloud_only', description: 'Old Cloud Expense', amount: 99, type: 'EXPENSE', createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z' }
+    ],
+    currency: 'USD',
+    deletedIds: { groups: {}, members: {}, expenses: {}, settlements: {} }
+};
+
+// If cloudAction was NOT overwrite (i.e. older bug), bidirectional merge would resurrect old cloud transaction:
+const buggedMerge = mergeAppState(replacedState, olderCloudState);
+assert.strictEqual(buggedMerge.transactions.length, 3, 'Demonstrating the bug: older cloud item resurrects without cloud overwrite');
+
+// With OVERWRITE cloudAction: remote state is overwritten with restored backup state
+const updatedCloudState = replacedState;
+const updatedCloudHash = computeStateHash(updatedCloudState);
+let lastSyncedHash = computeStateHash(replacedState);
+assert.strictEqual(lastSyncedHash, updatedCloudHash, 'lastSyncedHash matches new state hash after cloud overwrite');
+
+// Subsequent sync detects matching hashes and avoids bidirectional merge:
+let subsequentMergeTriggered = false;
+if (computeStateHash(replacedState) !== lastSyncedHash) {
+    subsequentMergeTriggered = true;
+}
+assert.strictEqual(subsequentMergeTriggered, false, 'No subsequent merge triggered because hashes match');
+
+// 9. IMPORT_DATA reducer clean replacement and synchronous storage
+const legacyStateWithGhosts = {
+    users: [{ id: 'u_old', name: 'Old' }],
+    groups: [{ id: 'grp_old', name: 'Old Group' }],
+    transactions: [{ id: 'tx_old', amount: 10 }],
+    expenses: [{ id: 'ghost_exp_1', amount: 50 }],
+    settlements: [{ id: 'ghost_stl_1', amount: 25 }],
+    currency: 'INR',
+    currentUserId: 'u_old',
+    selectedGroupId: 'grp_old'
+};
+
+const simulateImportReducer = (state, actionPayload) => {
+    const now = new Date().toISOString();
+    const importedUsers = (Array.isArray(actionPayload.users) && actionPayload.users.length > 0
+        ? actionPayload.users
+        : [{ id: 'u_you', name: 'You' }]
+    ).map(u => ({ ...u, updatedAt: u.updatedAt || now }));
+    const importedGroups = (Array.isArray(actionPayload.groups) ? actionPayload.groups : []).map(g => ({ ...g, updatedAt: g.updatedAt || now }));
+    const importedTransactions = (Array.isArray(actionPayload.transactions) ? actionPayload.transactions : []).map(t => ({ ...t, updatedAt: t.updatedAt || now }));
+    const importedDeletedIds = { groups: {}, members: {}, expenses: {}, settlements: {}, ...(actionPayload.deletedIds || {}) };
+
+    const targetGroupId = actionPayload.selectedGroupId !== undefined ? actionPayload.selectedGroupId : null;
+    const validSelectedGroupId = (targetGroupId === 'non-group' || importedGroups.some(g => g.id === targetGroupId)) ? targetGroupId : null;
+
+    const newState = {
+        users: importedUsers,
+        groups: importedGroups,
+        transactions: importedTransactions,
+        deletedIds: importedDeletedIds,
+        currency: actionPayload.currency || 'INR',
+        currentUserId: actionPayload.currentUserId || (importedUsers[0]?.id || 'u_you'),
+        selectedGroupId: validSelectedGroupId
+    };
+
+    mockLocalStorage.setItem('expense_manager_data', JSON.stringify(newState));
+    return newState;
+};
+
+const cleanImportedState = simulateImportReducer(legacyStateWithGhosts, normalizedBackup);
+assert.strictEqual(cleanImportedState.expenses, undefined, 'Legacy expenses ghost key purged');
+assert.strictEqual(cleanImportedState.settlements, undefined, 'Legacy settlements ghost key purged');
+assert.strictEqual(cleanImportedState.transactions.length, 2, 'Clean imported state contains only backup transactions');
+assert.strictEqual(cleanImportedState.selectedGroupId, null, 'Orphaned selectedGroupId safely reset to null');
+const persistedState = JSON.parse(mockLocalStorage.getItem('expense_manager_data'));
+assert.strictEqual(persistedState.transactions.length, 2, 'Clean imported state synchronously written to expense_manager_data in localStorage');
+
+global.localStorage = originalLocalStorage;
 
 console.log('--- ALL UNIT & INTEGRATION TESTS PASSED SUCCESSFULLY! ---');

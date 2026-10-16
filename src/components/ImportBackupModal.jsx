@@ -130,6 +130,15 @@ export default function ImportBackupModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
+    const handleStrategyChange = (newMode) => {
+        setMode(newMode);
+        if (newMode === 'REPLACE') {
+            setCloudAction('OVERWRITE');
+        } else if (newMode === 'MERGE') {
+            setCloudAction('MERGE');
+        }
+    };
+
     // Pre-select target user identity in backup representing "You"
     const [targetUserId, setTargetUserId] = useState(() => {
         const currentUserName = (state.users || []).find(u => u.id === state.currentUserId)?.name?.toLowerCase();
@@ -443,7 +452,7 @@ export default function ImportBackupModal({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                             {/* Option 1: Clean Restore (Replace All) */}
                             <div
-                                onClick={() => setMode('REPLACE')}
+                                onClick={() => handleStrategyChange('REPLACE')}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'flex-start',
@@ -464,7 +473,7 @@ export default function ImportBackupModal({
                                     type="radio"
                                     name="importMode"
                                     checked={mode === 'REPLACE'}
-                                    onChange={() => setMode('REPLACE')}
+                                    onChange={() => handleStrategyChange('REPLACE')}
                                     style={{ marginTop: '0.2rem', accentColor: 'hsl(var(--color-accent))', cursor: 'pointer' }}
                                 />
                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -491,7 +500,7 @@ export default function ImportBackupModal({
 
                             {/* Option 2: Smart Merge (Combine Data) */}
                             <div
-                                onClick={() => setMode('MERGE')}
+                                onClick={() => handleStrategyChange('MERGE')}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'flex-start',
@@ -512,7 +521,7 @@ export default function ImportBackupModal({
                                     type="radio"
                                     name="importMode"
                                     checked={mode === 'MERGE'}
-                                    onChange={() => setMode('MERGE')}
+                                    onChange={() => handleStrategyChange('MERGE')}
                                     style={{ marginTop: '0.2rem', accentColor: 'hsl(var(--color-accent))', cursor: 'pointer' }}
                                 />
                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -526,6 +535,166 @@ export default function ImportBackupModal({
                             </div>
                         </div>
                     </div>
+
+                    {/* Google Drive Cloud Action Card (Prominent when connected) */}
+                    {isDriveConnected && (
+                        <div style={{
+                            border: '1.5px solid hsl(var(--color-accent) / 0.35)',
+                            borderRadius: 'var(--radius-lg)',
+                            background: 'hsl(var(--color-surface))',
+                            padding: '1rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.75rem'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Cloud size={18} style={{ color: 'hsl(var(--color-accent))' }} />
+                                    <span style={{ fontWeight: 800, fontSize: '0.92rem', color: 'hsl(var(--color-text-main))' }}>
+                                        Google Drive Cloud Action
+                                    </span>
+                                </div>
+                                <span style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    padding: '0.15rem 0.55rem',
+                                    borderRadius: 'var(--radius-full)',
+                                    background: 'hsl(var(--color-success) / 0.15)',
+                                    color: 'hsl(var(--color-success))'
+                                }}>
+                                    Connected
+                                </span>
+                            </div>
+
+                            <div style={{ fontSize: '0.8rem', color: 'hsl(var(--color-text-muted))', lineHeight: 1.4 }}>
+                                Choose how SplitIt synchronizes this restored backup with your Google Drive cloud storage:
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                                {/* Overwrite Cloud */}
+                                <div
+                                    onClick={() => setCloudAction('OVERWRITE')}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: '0.75rem',
+                                        padding: '0.75rem 0.85rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        border: cloudAction === 'OVERWRITE'
+                                            ? '2px solid hsl(var(--color-accent))'
+                                            : '1px solid hsl(var(--color-border-subtle))',
+                                        background: cloudAction === 'OVERWRITE'
+                                            ? 'hsl(var(--color-accent) / 0.08)'
+                                            : 'hsl(var(--color-surface-dim))',
+                                        transition: 'all var(--transition-fast)'
+                                    }}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="cloudAction"
+                                        checked={cloudAction === 'OVERWRITE'}
+                                        onChange={() => setCloudAction('OVERWRITE')}
+                                        style={{ marginTop: '0.2rem', accentColor: 'hsl(var(--color-accent))', cursor: 'pointer' }}
+                                    />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'hsl(var(--color-text-main))' }}>
+                                                Overwrite Google Drive (Reset Drive)
+                                            </span>
+                                            {mode === 'REPLACE' && (
+                                                <span style={{
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 700,
+                                                    padding: '0.1rem 0.4rem',
+                                                    borderRadius: 'var(--radius-full)',
+                                                    background: 'hsl(var(--color-accent) / 0.15)',
+                                                    color: 'hsl(var(--color-accent))'
+                                                }}>
+                                                    Recommended for Clean Restore
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.78rem', marginTop: '0.2rem', lineHeight: 1.35 }}>
+                                            Uploads this restored backup as the definitive cloud state. Prevents older cloud items from resurrecting.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Pause Cloud Sync */}
+                                <div
+                                    onClick={() => setCloudAction('PAUSE')}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: '0.75rem',
+                                        padding: '0.75rem 0.85rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        border: cloudAction === 'PAUSE'
+                                            ? '2px solid hsl(var(--color-accent))'
+                                            : '1px solid hsl(var(--color-border-subtle))',
+                                        background: cloudAction === 'PAUSE'
+                                            ? 'hsl(var(--color-accent) / 0.08)'
+                                            : 'hsl(var(--color-surface-dim))',
+                                        transition: 'all var(--transition-fast)'
+                                    }}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="cloudAction"
+                                        checked={cloudAction === 'PAUSE'}
+                                        onChange={() => setCloudAction('PAUSE')}
+                                        style={{ marginTop: '0.2rem', accentColor: 'hsl(var(--color-accent))', cursor: 'pointer' }}
+                                    />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'hsl(var(--color-text-main))' }}>
+                                            Pause Auto-Sync
+                                        </span>
+                                        <div style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.78rem', marginTop: '0.2rem', lineHeight: 1.35 }}>
+                                            Imports data locally and disables Google Drive sync so you can inspect everything first.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Merge with Cloud */}
+                                <div
+                                    onClick={() => setCloudAction('MERGE')}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: '0.75rem',
+                                        padding: '0.75rem 0.85rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        border: cloudAction === 'MERGE'
+                                            ? '2px solid hsl(var(--color-accent))'
+                                            : '1px solid hsl(var(--color-border-subtle))',
+                                        background: cloudAction === 'MERGE'
+                                            ? 'hsl(var(--color-accent) / 0.08)'
+                                            : 'hsl(var(--color-surface-dim))',
+                                        transition: 'all var(--transition-fast)'
+                                    }}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="cloudAction"
+                                        checked={cloudAction === 'MERGE'}
+                                        onChange={() => setCloudAction('MERGE')}
+                                        style={{ marginTop: '0.2rem', accentColor: 'hsl(var(--color-accent))', cursor: 'pointer' }}
+                                    />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'hsl(var(--color-text-main))' }}>
+                                            Merge with Google Drive
+                                        </span>
+                                        <div style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.78rem', marginTop: '0.2rem', lineHeight: 1.35 }}>
+                                            Bidirectional sync combining imported data with whatever already exists in Google Drive.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Advanced Options Accordion */}
                     <div style={{
@@ -593,10 +762,10 @@ export default function ImportBackupModal({
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.88rem' }}>
                                             <ShieldCheck size={16} style={{ color: '#10b981' }} />
-                                            <span>Create safety backup before importing</span>
+                                            <span>Instant safety snapshot before importing</span>
                                         </div>
-                                        <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.15rem' }}>
-                                            Automatically saves a snapshot of your current local data before importing, so you can revert anytime.
+                                        <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.15rem', lineHeight: 1.35 }}>
+                                            Automatically captures an instant local snapshot to your device before importing without interrupting you with file dialogs, so you can revert anytime.
                                         </div>
                                     </div>
                                 </div>
@@ -625,118 +794,7 @@ export default function ImportBackupModal({
                                     </div>
                                 )}
 
-                                {/* Google Drive Cloud Sync Action */}
-                                {isDriveConnected ? (
-                                    <div style={{ borderTop: '1px solid hsl(var(--color-border-subtle))', paddingTop: '0.85rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.5rem' }}>
-                                            <Cloud size={16} style={{ color: 'hsl(var(--color-accent))' }} />
-                                            <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                                                Google Drive Cloud Action:
-                                            </label>
-                                        </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                                            {/* Overwrite Cloud */}
-                                            <div
-                                                onClick={() => setCloudAction('OVERWRITE')}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'flex-start',
-                                                    gap: '0.65rem',
-                                                    padding: '0.65rem 0.8rem',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    cursor: 'pointer',
-                                                    border: cloudAction === 'OVERWRITE'
-                                                        ? '1.5px solid hsl(var(--color-accent))'
-                                                        : '1px solid hsl(var(--color-border-subtle))',
-                                                    background: cloudAction === 'OVERWRITE'
-                                                        ? 'hsl(var(--color-accent) / 0.08)'
-                                                        : 'hsl(var(--color-surface-dim))'
-                                                }}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="cloudAction"
-                                                    checked={cloudAction === 'OVERWRITE'}
-                                                    onChange={() => setCloudAction('OVERWRITE')}
-                                                    style={{ marginTop: '0.15rem', accentColor: 'hsl(var(--color-accent))' }}
-                                                />
-                                                <div style={{ fontSize: '0.82rem' }}>
-                                                    <span style={{ fontWeight: 700 }}>Overwrite Cloud (Reset Drive)</span>
-                                                    <div style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.76rem', marginTop: '0.1rem' }}>
-                                                        Uploads this restored backup as the definitive cloud state. Prevents older cloud items from resurrecting.
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Merge with Cloud */}
-                                            <div
-                                                onClick={() => setCloudAction('MERGE')}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'flex-start',
-                                                    gap: '0.65rem',
-                                                    padding: '0.65rem 0.8rem',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    cursor: 'pointer',
-                                                    border: cloudAction === 'MERGE'
-                                                        ? '1.5px solid hsl(var(--color-accent))'
-                                                        : '1px solid hsl(var(--color-border-subtle))',
-                                                    background: cloudAction === 'MERGE'
-                                                        ? 'hsl(var(--color-accent) / 0.08)'
-                                                        : 'hsl(var(--color-surface-dim))'
-                                                }}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="cloudAction"
-                                                    checked={cloudAction === 'MERGE'}
-                                                    onChange={() => setCloudAction('MERGE')}
-                                                    style={{ marginTop: '0.15rem', accentColor: 'hsl(var(--color-accent))' }}
-                                                />
-                                                <div style={{ fontSize: '0.82rem' }}>
-                                                    <span style={{ fontWeight: 700 }}>Merge with Cloud</span>
-                                                    <div style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.76rem', marginTop: '0.1rem' }}>
-                                                        Bidirectional sync combining imported data with whatever already exists in Google Drive.
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Pause Auto-Sync */}
-                                            <div
-                                                onClick={() => setCloudAction('PAUSE')}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'flex-start',
-                                                    gap: '0.65rem',
-                                                    padding: '0.65rem 0.8rem',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    cursor: 'pointer',
-                                                    border: cloudAction === 'PAUSE'
-                                                        ? '1.5px solid hsl(var(--color-accent))'
-                                                        : '1px solid hsl(var(--color-border-subtle))',
-                                                    background: cloudAction === 'PAUSE'
-                                                        ? 'hsl(var(--color-accent) / 0.08)'
-                                                        : 'hsl(var(--color-surface-dim))'
-                                                }}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="cloudAction"
-                                                    checked={cloudAction === 'PAUSE'}
-                                                    onChange={() => setCloudAction('PAUSE')}
-                                                    style={{ marginTop: '0.15rem', accentColor: 'hsl(var(--color-accent))' }}
-                                                />
-                                                <div style={{ fontSize: '0.82rem' }}>
-                                                    <span style={{ fontWeight: 700 }}>Pause Auto-Sync</span>
-                                                    <div style={{ color: 'hsl(var(--color-text-muted))', fontSize: '0.76rem', marginTop: '0.1rem' }}>
-                                                        Imports data locally and disables Google Drive sync so you can inspect everything first.
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : (
+                                {!isDriveConnected && (
                                     <div style={{
                                         fontSize: '0.78rem',
                                         color: 'hsl(var(--color-text-muted))',
