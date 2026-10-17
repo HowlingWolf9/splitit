@@ -11,6 +11,7 @@ import GroupCardBanner from './GroupCardBanner';
 import GroupFormModal from './GroupFormModal';
 import GroupSettleUpModal from './GroupSettleUpModal';
 import ExpenseForm from './ExpenseForm';
+import SettlementForm from './SettlementForm';
 import ExpenseDetailView from './ExpenseDetailView';
 
 export default function GroupDetailView() {
@@ -35,6 +36,7 @@ export default function GroupDetailView() {
     const [showSettleModal, setShowSettleModal] = useState(false);
     const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
     const [viewingExpense, setViewingExpense] = useState(null);
+    const [settleTarget, setSettleTarget] = useState(null);
     const [showLiveSyncModal, setShowLiveSyncModal] = useState(false);
     const [codeCopied, setCodeCopied] = useState(false);
     const [isManualSyncing, setIsManualSyncing] = useState(false);
@@ -43,6 +45,7 @@ export default function GroupDetailView() {
     useModalBackHandler(showSettleModal, () => setShowSettleModal(false));
     useModalBackHandler(showAddExpenseModal, () => setShowAddExpenseModal(false));
     useModalBackHandler(!!viewingExpense, () => setViewingExpense(null));
+    useModalBackHandler(!!settleTarget, () => setSettleTarget(null));
     useModalBackHandler(showLiveSyncModal, () => setShowLiveSyncModal(false));
 
     const group = (state.groups || []).find(g => g.id === id);
@@ -449,18 +452,50 @@ export default function GroupDetailView() {
                             <p style={{ color: 'hsl(var(--color-text-muted))', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
                                 Add the first group expense to start splitting bills with friends.
                             </p>
-                            <button
-                                type="button"
-                                className="btn"
-                                onClick={() => setShowAddExpenseModal(true)}
-                                style={{ backgroundColor: '#00d09c' }}
-                            >
-                                <Plus size={18} />
-                                Add First Expense
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => setShowAddExpenseModal(true)}
+                                    style={{ backgroundColor: '#00d09c' }}
+                                >
+                                    <Plus size={18} />
+                                    Add First Expense
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => setSettleTarget({
+                                        from: null,
+                                        to: null,
+                                        amount: null,
+                                        groupId: group.id
+                                    })}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                >
+                                    <HandCoins size={16} />
+                                    <span>Record Settlement</span>
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <div style={{ display: 'grid', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.25rem' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => setSettleTarget({
+                                        from: null,
+                                        to: null,
+                                        amount: null,
+                                        groupId: group.id
+                                    })}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                >
+                                    <HandCoins size={14} />
+                                    <span>Record Settlement</span>
+                                </button>
+                            </div>
                             {groupTransactions.map(tx => {
                                 const isExpense = tx.type === 'EXPENSE';
                                 const myPaid = isExpense
@@ -518,7 +553,7 @@ export default function GroupDetailView() {
                                                 <div style={{ fontSize: '0.8rem', color: 'hsl(var(--color-text-muted))' }}>
                                                     {isExpense ? (
                                                         <>
-                                                            Paid by {tx.payers?.map(p => getUserName(p.userId)).join(', ')}
+                                                             Paid by {tx.payers?.map(p => getUserName(p.userId)).join(', ')}
                                                         </>
                                                     ) : (
                                                         <>
@@ -558,10 +593,26 @@ export default function GroupDetailView() {
                 <div style={{ display: 'grid', gap: '1.5rem' }}>
                     {/* Simplified Settlements */}
                     <div className="card">
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Scale size={18} />
-                            Suggested Group Settlements
-                        </h3>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Scale size={18} />
+                                Suggested Group Settlements
+                            </h3>
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setSettleTarget({
+                                    from: null,
+                                    to: null,
+                                    amount: null,
+                                    groupId: group.id
+                                })}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                                <HandCoins size={14} />
+                                <span>Record Settlement</span>
+                            </button>
+                        </div>
 
                         {groupDebtsInfo.allSettlements?.length === 0 ? (
                             <div style={{ padding: '2rem', textAlign: 'center', color: 'hsl(var(--color-success))' }}>
@@ -593,8 +644,25 @@ export default function GroupDetailView() {
                                                 {getUserName(s.to)} {s.to === currentMemberId ? '(You)' : ''}
                                             </span>
                                         </div>
-                                        <div style={{ fontWeight: '800', fontSize: '1.1rem' }}>
-                                            {formatMoney(s.amount)}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                                            <div style={{ fontWeight: '800', fontSize: '1.1rem' }}>
+                                                {formatMoney(s.amount)}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSettleTarget({
+                                                    from: s.from,
+                                                    to: s.to,
+                                                    amount: s.amount,
+                                                    groupId: group.id
+                                                })}
+                                                className="btn btn-primary btn-sm"
+                                                title={`Settle ${formatMoney(s.amount)} from ${getUserName(s.from)} to ${getUserName(s.to)}`}
+                                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                            >
+                                                <HandCoins size={14} />
+                                                <span>Settle</span>
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -741,6 +809,27 @@ export default function GroupDetailView() {
                     onClose={() => setShowSettleModal(false)}
                     onSuccess={() => setShowSettleModal(false)}
                 />
+            )}
+
+            {settleTarget && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setSettleTarget(null);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
+                        <SettlementForm
+                            defaultFrom={settleTarget.from}
+                            defaultTo={settleTarget.to}
+                            defaultAmount={settleTarget.amount}
+                            defaultGroupId={settleTarget.groupId || group.id}
+                            onCancel={() => setSettleTarget(null)}
+                            onSuccess={() => setSettleTarget(null)}
+                        />
+                    </div>
+                </div>
             )}
 
             {showAddExpenseModal && (

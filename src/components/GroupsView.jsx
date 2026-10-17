@@ -7,6 +7,7 @@ import GroupCardBanner from './GroupCardBanner';
 import GroupFormModal from './GroupFormModal';
 import GroupSettleUpModal from './GroupSettleUpModal';
 import JoinSharedGroupModal from './JoinSharedGroupModal';
+import SettlementForm from './SettlementForm';
 
 export default function GroupsView() {
     const navigate = useNavigate();
@@ -23,10 +24,12 @@ export default function GroupsView() {
     const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
     const [settleGroupTarget, setSettleGroupTarget] = useState(null);
+    const [showGeneralSettlement, setShowGeneralSettlement] = useState(false);
 
     useModalBackHandler(showCreateGroupModal, () => setShowCreateGroupModal(false));
     useModalBackHandler(showJoinModal, () => setShowJoinModal(false));
     useModalBackHandler(!!settleGroupTarget, () => setSettleGroupTarget(null));
+    useModalBackHandler(showGeneralSettlement, () => setShowGeneralSettlement(false));
 
 
     const currentUserId = state.currentUserId || state.users[0]?.id;
@@ -126,6 +129,16 @@ export default function GroupsView() {
 
                 {/* Primary Action Buttons (Canonical desktop/tablet toolbar) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowGeneralSettlement(true)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        title="Record a settlement"
+                    >
+                        <HandCoins size={14} />
+                        <span>Record Settlement</span>
+                    </button>
                     <button
                         type="button"
                         onClick={() => setShowCreateGroupModal(true)}
@@ -444,6 +457,25 @@ export default function GroupsView() {
                         navigate(`/groups/${newId}`);
                     }}
                 />
+            )}
+
+            {/* General Settlement Modal */}
+            {showGeneralSettlement && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowGeneralSettlement(false);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
+                        <SettlementForm
+                            defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
+                            onCancel={() => setShowGeneralSettlement(false)}
+                            onSuccess={() => setShowGeneralSettlement(false)}
+                        />
+                    </div>
+                </div>
             )}
         </div>
     );

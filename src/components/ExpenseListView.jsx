@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { Edit2, Eye, ArrowUpDown, Plus, Search, Receipt } from 'lucide-react';
+import { Edit2, Eye, ArrowUpDown, Plus, Search, Receipt, HandCoins } from 'lucide-react';
 import ExpenseForm from './ExpenseForm';
+import SettlementForm from './SettlementForm';
 import { useModalBackHandler } from '../utils/backButton';
 
 export default function ExpenseListView({ onEditTransaction, onViewTransaction }) {
     const { state, selectedGroupId, selectedGroup } = useExpenses();
     const [sortBy, setSortBy] = useState('date-desc');
     const [showForm, setShowForm] = useState(false);
+    const [showSettlementForm, setShowSettlementForm] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -56,6 +58,7 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
     };
 
     useModalBackHandler(showForm, handleCloseForm);
+    useModalBackHandler(showSettlementForm, () => setShowSettlementForm(false));
 
     // Filter only expenses
     const expenses = (state.transactions || []).filter(t => t.type === 'EXPENSE');
@@ -138,6 +141,16 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                             {filteredExpenses.length} {filteredExpenses.length === 1 ? 'expense' : 'expenses'} tracked
                         </span>
                     </div>
+
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setShowSettlementForm(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                        <HandCoins size={15} />
+                        <span>Record Settlement</span>
+                    </button>
                 </div>
 
                 {/* Filter and Search Bar */}
@@ -303,6 +316,25 @@ export default function ExpenseListView({ onEditTransaction, onViewTransaction }
                             onCancel={handleCloseForm}
                             onSuccess={handleCloseForm}
                             editingTransaction={editingTransaction}
+                            defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Record Settlement Modal */}
+            {showSettlementForm && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowSettlementForm(false);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
+                        <SettlementForm
+                            onCancel={() => setShowSettlementForm(false)}
+                            onSuccess={() => setShowSettlementForm(false)}
                             defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
                         />
                     </div>

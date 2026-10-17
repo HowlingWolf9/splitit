@@ -655,6 +655,22 @@ export default function BalancesView() {
                         )}
 
                         <button
+                            type="button"
+                            onClick={() => setSettleTarget({
+                                from: null,
+                                to: null,
+                                amount: null,
+                                groupId: groupFilter === 'ALL' || groupFilter === 'non-group' ? null : groupFilter
+                            })}
+                            className="btn btn-primary btn-sm print-hide"
+                            title="Record a custom or ad-hoc settlement"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <HandCoins size={15} />
+                            <span>Record Settlement</span>
+                        </button>
+
+                        <button
                             onClick={handlePrint}
                             className="btn btn-secondary btn-sm print-hide"
                             title="Export or Print Custom PDF Statement"
@@ -689,6 +705,20 @@ export default function BalancesView() {
                     <p style={{ margin: 0, color: 'hsl(var(--color-text-muted))', fontSize: '0.9rem' }}>
                         All balances are currently at zero. No settlements are needed.
                     </p>
+                    <button
+                        type="button"
+                        onClick={() => setSettleTarget({
+                            from: null,
+                            to: null,
+                            amount: null,
+                            groupId: groupFilter === 'ALL' || groupFilter === 'non-group' ? null : groupFilter
+                        })}
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: '1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                        <HandCoins size={15} />
+                        <span>Record Settlement</span>
+                    </button>
                 </div>
             ) : (
                 <div style={{ display: 'grid', gap: '0.75rem' }}>

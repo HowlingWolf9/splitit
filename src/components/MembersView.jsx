@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, ChevronRight, Search, UserPlus, UserMinus, Mail, X } from 'lucide-react';
+import { Users, ChevronRight, Search, UserPlus, UserMinus, Mail, X, HandCoins } from 'lucide-react';
+import SettlementForm from './SettlementForm';
+import { useModalBackHandler } from '../utils/backButton';
 
 const EMAIL_REGEX = /^\S+@\S+\.\S+$/;
 
@@ -27,6 +29,9 @@ export default function MembersView() {
     const [showEmailInput, setShowEmailInput] = useState(false);
     const [memberAddError, setMemberAddError] = useState('');
     const [selectedExistingUser, setSelectedExistingUser] = useState('');
+    const [settleTarget, setSettleTarget] = useState(null);
+
+    useModalBackHandler(!!settleTarget, () => setSettleTarget(null));
 
     // Active users list based on scope
     const scopedUsers = useMemo(() => {
@@ -158,27 +163,44 @@ export default function MembersView() {
                         </span>
                     </div>
 
-                    {/* Search */}
-                    <div style={{ position: 'relative', minWidth: '220px' }}>
-                        <Search size={15} style={{
-                            position: 'absolute',
-                            left: '0.75rem',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            color: 'hsl(var(--color-text-muted))'
-                        }} />
-                        <input
-                            type="text"
-                            placeholder="Search members..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input"
-                            style={{
-                                paddingLeft: '2.2rem',
-                                padding: '0.45rem 0.65rem 0.45rem 2.2rem',
-                                fontSize: '0.84rem'
-                            }}
-                        />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setSettleTarget({
+                                from: null,
+                                to: null,
+                                amount: null,
+                                groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
+                            })}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <HandCoins size={15} />
+                            <span>Record Settlement</span>
+                        </button>
+
+                        {/* Search */}
+                        <div style={{ position: 'relative', minWidth: '220px' }}>
+                            <Search size={15} style={{
+                                position: 'absolute',
+                                left: '0.75rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: 'hsl(var(--color-text-muted))'
+                            }} />
+                            <input
+                                type="text"
+                                placeholder="Search members..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="input"
+                                style={{
+                                    paddingLeft: '2.2rem',
+                                    padding: '0.45rem 0.65rem 0.45rem 2.2rem',
+                                    fontSize: '0.84rem'
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -407,6 +429,27 @@ export default function MembersView() {
                                         </div>
                                     </div>
 
+                                    {(isNegative || isPositive) && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSettleTarget({
+                                                    from: isNegative ? user.id : null,
+                                                    to: isPositive ? user.id : null,
+                                                    amount: Math.abs(balance) > 0.009 ? Math.abs(balance) : null,
+                                                    groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
+                                                });
+                                            }}
+                                            className="btn btn-secondary btn-sm"
+                                            title={`Settle balance with ${user.name}`}
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.6rem' }}
+                                        >
+                                            <HandCoins size={13} />
+                                            <span>Settle</span>
+                                        </button>
+                                    )}
+
                                     {isGroupSelected && !isNonGroup && (
                                         <button
                                             type="button"
@@ -424,6 +467,28 @@ export default function MembersView() {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Settlement Modal */}
+            {settleTarget && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setSettleTarget(null);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
+                        <SettlementForm
+                            defaultFrom={settleTarget.from}
+                            defaultTo={settleTarget.to}
+                            defaultAmount={settleTarget.amount}
+                            defaultGroupId={settleTarget.groupId}
+                            onCancel={() => setSettleTarget(null)}
+                            onSuccess={() => setSettleTarget(null)}
+                        />
+                    </div>
                 </div>
             )}
         </div>

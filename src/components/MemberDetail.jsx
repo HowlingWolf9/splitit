@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { ArrowLeft, User, ArrowRight, UserMinus, Mail, Edit3, GitMerge, Copy, Check } from 'lucide-react';
+import { ArrowLeft, User, ArrowRight, UserMinus, Mail, Edit3, GitMerge, Copy, Check, HandCoins } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import TransactionList from './TransactionList';
 import MemberEditModal from './MemberEditModal';
 import MergeUsersModal from './MergeUsersModal';
+import SettlementForm from './SettlementForm';
+import { useModalBackHandler } from '../utils/backButton';
 
 export default function MemberDetail({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement }) {
     const { id } = useParams();
@@ -13,8 +15,13 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
 
     const [showEditModal, setShowEditModal] = useState(false);
     const [showMergeModal, setShowMergeModal] = useState(false);
+    const [settleTarget, setSettleTarget] = useState(null);
     const [mergeTargetId, setMergeTargetId] = useState('');
     const [copiedEmail, setCopiedEmail] = useState(false);
+
+    useModalBackHandler(showEditModal, () => setShowEditModal(false));
+    useModalBackHandler(showMergeModal, () => setShowMergeModal(false));
+    useModalBackHandler(!!settleTarget, () => setSettleTarget(null));
     
     const member = (state.users || []).find(u => u.id === id);
 
@@ -288,6 +295,22 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                 }}>
                     <button
                         type="button"
+                        onClick={() => {
+                            setSettleTarget({
+                                from: isNegative ? member.id : null,
+                                to: isPositive ? member.id : null,
+                                amount: Math.abs(balance) > 0.009 ? Math.abs(balance) : null,
+                                groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
+                            });
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                        <HandCoins size={15} />
+                        <span>Record Settlement</span>
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => setShowEditModal(true)}
                         className="btn btn-secondary btn-sm"
                         style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
@@ -338,16 +361,35 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                                 padding: '0.75rem 1rem',
                                 background: 'hsl(var(--color-danger-soft))',
                                 borderRadius: 'var(--radius-md)',
-                                border: '1px solid hsl(var(--color-danger) / 0.2)'
+                                border: '1px solid hsl(var(--color-danger) / 0.2)',
+                                gap: '0.75rem',
+                                flexWrap: 'wrap'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
                                     <strong style={{ color: 'hsl(var(--color-danger-text))' }}>{member.name}</strong>
                                     <ArrowRight size={14} style={{ color: 'hsl(var(--color-text-muted))' }} />
                                     <strong>{user.name}</strong>
                                 </div>
-                                <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'hsl(var(--color-danger-text))' }}>
-                                    {formatMoney(Math.abs(balance))}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                    <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'hsl(var(--color-danger-text))' }}>
+                                        {formatMoney(Math.abs(balance))}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSettleTarget({
+                                            from: member.id,
+                                            to: user.id,
+                                            amount: Math.abs(balance),
+                                            groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
+                                        })}
+                                        className="btn btn-primary btn-sm"
+                                        title={`Settle ${formatMoney(Math.abs(balance))} from ${member.name} to ${user.name}`}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.6rem' }}
+                                    >
+                                        <HandCoins size={13} />
+                                        <span>Settle</span>
+                                    </button>
+                                </div>
                             </div>
                         ))}
 
@@ -359,16 +401,35 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                                 padding: '0.75rem 1rem',
                                 background: 'hsl(var(--color-success-soft))',
                                 borderRadius: 'var(--radius-md)',
-                                border: '1px solid hsl(var(--color-success) / 0.2)'
+                                border: '1px solid hsl(var(--color-success) / 0.2)',
+                                gap: '0.75rem',
+                                flexWrap: 'wrap'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
                                     <strong>{user.name}</strong>
                                     <ArrowRight size={14} style={{ color: 'hsl(var(--color-text-muted))' }} />
                                     <strong style={{ color: 'hsl(var(--color-success))' }}>{member.name}</strong>
                                 </div>
-                                <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'hsl(var(--color-success))' }}>
-                                    {formatMoney(Math.abs(balance))}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                    <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'hsl(var(--color-success))' }}>
+                                        {formatMoney(Math.abs(balance))}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSettleTarget({
+                                            from: user.id,
+                                            to: member.id,
+                                            amount: Math.abs(balance),
+                                            groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
+                                        })}
+                                        className="btn btn-primary btn-sm"
+                                        title={`Settle ${formatMoney(Math.abs(balance))} from ${user.name} to ${member.name}`}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.6rem' }}
+                                    >
+                                        <HandCoins size={13} />
+                                        <span>Settle</span>
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -393,9 +454,25 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
             {/* Settlements */}
             {settlements.length > 0 && (
                 <div className="card">
-                    <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 700 }}>
-                        Settlements ({settlements.length})
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                            Settlements ({settlements.length})
+                        </h3>
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setSettleTarget({
+                                from: isNegative ? member.id : null,
+                                to: isPositive ? member.id : null,
+                                amount: null,
+                                groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
+                            })}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <HandCoins size={14} />
+                            <span>Record Settlement</span>
+                        </button>
+                    </div>
                     <TransactionList
                         transactions={settlements}
                         onEditSettlement={onEditSettlement}
@@ -431,6 +508,28 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                         navigate(`/members/${targetId}`);
                     }}
                 />
+            )}
+
+            {/* Settlement Modal */}
+            {settleTarget && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setSettleTarget(null);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
+                        <SettlementForm
+                            defaultFrom={settleTarget.from}
+                            defaultTo={settleTarget.to}
+                            defaultAmount={settleTarget.amount}
+                            defaultGroupId={settleTarget.groupId}
+                            onCancel={() => setSettleTarget(null)}
+                            onSuccess={() => setSettleTarget(null)}
+                        />
+                    </div>
+                </div>
             )}
         </div>
     );

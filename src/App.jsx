@@ -38,13 +38,13 @@ import {
     X
 } from 'lucide-react';
 
-function DashboardView({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement }) {
+function DashboardView({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement, onAddSettlement }) {
     const { filteredTransactions, selectedGroup } = useExpenses();
     return (
         <div style={{ display: 'grid', gap: '1.5rem', width: '100%', minWidth: 0 }}>
             <DashboardSummary />
             <div style={{ width: '100%', minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', minWidth: 0, gap: '0.75rem', flexWrap: 'wrap' }}>
                     <div>
                         <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'hsl(var(--color-text-main))' }}>
                             {selectedGroup ? `Recent Activity — ${selectedGroup.name}` : 'Recent Activity'}
@@ -53,6 +53,17 @@ function DashboardView({ onEditTransaction, onViewTransaction, onEditSettlement,
                             Latest expenses and settlements
                         </p>
                     </div>
+                    {onAddSettlement && (
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={onAddSettlement}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                            <HandCoins size={15} />
+                            <span>Record Settlement</span>
+                        </button>
+                    )}
                 </div>
                 <TransactionList
                     transactions={filteredTransactions}
@@ -615,6 +626,7 @@ function ExpenseApp() {
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [editingSettlement, setEditingSettlement] = useState(null);
     const [isAddingExpense, setIsAddingExpense] = useState(false);
+    const [isAddingSettlement, setIsAddingSettlement] = useState(false);
 
     // Register active back button handlers for modals in App
     useModalBackHandler(!!viewingTransaction, () => setViewingTransaction(null));
@@ -622,6 +634,7 @@ function ExpenseApp() {
     useModalBackHandler(!!editingTransaction, () => setEditingTransaction(null));
     useModalBackHandler(!!editingSettlement, () => setEditingSettlement(null));
     useModalBackHandler(isAddingExpense, () => setIsAddingExpense(false));
+    useModalBackHandler(isAddingSettlement, () => setIsAddingSettlement(false));
 
     // Hardware Back Button Integration via Capacitor
     useEffect(() => {
@@ -697,8 +710,8 @@ function ExpenseApp() {
                 {showScopeBanner && <div className="print-hide"><GroupScopeBanner /></div>}
 
                 <Routes>
-                    <Route path="/" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} />} />
-                    <Route path="/dashboard" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} />} />
+                    <Route path="/" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} onAddSettlement={() => setIsAddingSettlement(true)} />} />
+                    <Route path="/dashboard" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} onAddSettlement={() => setIsAddingSettlement(true)} />} />
                     <Route path="/groups" element={<GroupsView />} />
                     <Route path="/groups/:id" element={<GroupDetailView />} />
                     <Route path="/expenses" element={<ExpenseListView onViewTransaction={handleViewTransaction} onEditTransaction={handleEditTransaction} />} />
@@ -712,8 +725,17 @@ function ExpenseApp() {
                 </Routes>
             </main>
 
-            {/* Quick Add Expense FAB positioned above Bottom Navigation Bar */}
+            {/* Quick Actions FAB positioned above Bottom Navigation Bar */}
             <div className="fab-container">
+                <button
+                    type="button"
+                    className="fab fab-secondary"
+                    onClick={() => setIsAddingSettlement(true)}
+                    title="Quick Record Settlement"
+                >
+                    <HandCoins size={18} strokeWidth={2.4} />
+                    <span>Record Settlement</span>
+                </button>
                 <button
                     type="button"
                     className="fab fab-primary"
@@ -727,6 +749,25 @@ function ExpenseApp() {
 
             {/* Native Mobile Bottom Navigation Bar */}
             <MobileBottomNav />
+
+            {/* Quick Record Settlement Bottom Sheet */}
+            {isAddingSettlement && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setIsAddingSettlement(false);
+                    }}
+                >
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="bottom-sheet-handle" />
+                        <SettlementForm
+                            onCancel={() => setIsAddingSettlement(false)}
+                            onSuccess={() => setIsAddingSettlement(false)}
+                            defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Quick Add Expense Bottom Sheet */}
             {isAddingExpense && (
