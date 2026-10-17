@@ -198,33 +198,43 @@ export function expenseReducer(state, action) {
                     }
 
                     if (changed) {
-                        updatedTransactions.push({
+                        const updatedTx = {
                             ...tx,
                             from: newFrom,
                             to: newTo,
-                            collectorId: newCollectorId,
                             updatedAt: now
-                        });
+                        };
+                        if (newCollectorId !== undefined || 'collectorId' in tx) {
+                            updatedTx.collectorId = newCollectorId;
+                        }
+                        updatedTransactions.push(updatedTx);
                     } else {
                         updatedTransactions.push(tx);
                     }
                 } else {
                     // EXPENSE
                     let changed = false;
-                    let newCollectorId = tx.collectorId;
+                    const updatedTx = { ...tx };
+
+                    // Collector
                     if (tx.collectorId === sourceUserId) {
-                        newCollectorId = targetUserId;
+                        updatedTx.collectorId = targetUserId;
                         changed = true;
                     }
 
-                    let newPayerId = tx.payerId;
+                    // PayerId
                     if (tx.payerId === sourceUserId) {
-                        newPayerId = targetUserId;
+                        updatedTx.payerId = targetUserId;
                         changed = true;
+                    }
+
+                    // Participants array
+                    if (Array.isArray(tx.participants) && tx.participants.includes(sourceUserId)) {
+                        changed = true;
+                        updatedTx.participants = Array.from(new Set(tx.participants.map(p => p === sourceUserId ? targetUserId : p)));
                     }
 
                     // Payers (Array or Object)
-                    let newPayers = tx.payers;
                     if (Array.isArray(tx.payers)) {
                         const hasSource = tx.payers.some(p => p && p.userId === sourceUserId);
                         if (hasSource) {
@@ -245,84 +255,127 @@ export function expenseReducer(state, action) {
                                     payerMap.set(uid, { ...p, userId: uid });
                                 }
                             });
-                            newPayers = Array.from(payerMap.values());
+                            updatedTx.payers = Array.from(payerMap.values());
                         }
                     } else if (tx.payers && typeof tx.payers === 'object') {
                         if (sourceUserId in tx.payers) {
                             changed = true;
-                            newPayers = { ...tx.payers };
+                            const newPayers = { ...tx.payers };
                             const srcAmt = Number(newPayers[sourceUserId]) || 0;
                             const tgtAmt = Number(newPayers[targetUserId]) || 0;
                             newPayers[targetUserId] = Math.round((tgtAmt + srcAmt) * 100) / 100;
                             delete newPayers[sourceUserId];
+                            updatedTx.payers = newPayers;
                         }
                     }
 
+                    // Helper to consolidate split arrays (splits or splitDetails)
+                    const consolidateSplitArray = (splitsArr) => {
+                        const splitMap = new Map();
+                        splitsArr.forEach(s => {
+                            if (!s) return;
+                            const uid = s.userId === sourceUserId ? targetUserId : s.userId;
+                            const existing = splitMap.get(uid);
+                            if (existing) {
+                                const hasExistingShare = existing.shares !== undefined || existing.share !== undefined;
+                                const hasSShare = s.shares !== undefined || s.share !== undefined;
+                                const combinedShares = (hasExistingShare || hasSShare)
+                                    ? (Number(existing.shares ?? existing.share) || 0) + (Number(s.shares ?? s.share) || 0)
+                                    : undefined;
+                                const combinedObj = {
+                                    ...existing,
+                                    ...s,
+                                    userId: uid,
+                                    amount: Math.round(((Number(existing.amount) || 0) + (Number(s.amount) || 0)) * 100) / 100
+                                };
+                                if (combinedShares !== undefined) {
+                                    combinedObj.shares = combinedShares;
+                                    delete combinedObj.share;
+                                }
+                                splitMap.set(uid, combinedObj);
+                            } else {
+                                splitMap.set(uid, { ...s, userId: uid });
+                            }
+                        });
+                        return Array.from(splitMap.values());
+                    };
+
                     // Splits (Array or Object)
-                    let newSplits = tx.splits;
                     if (Array.isArray(tx.splits)) {
                         const hasSource = tx.splits.some(s => s && s.userId === sourceUserId);
                         if (hasSource) {
                             changed = true;
-                            const splitMap = new Map();
-                            tx.splits.forEach(s => {
-                                if (!s) return;
-                                const uid = s.userId === sourceUserId ? targetUserId : s.userId;
-                                const existing = splitMap.get(uid);
-                                if (existing) {
-                                    const combinedShares = (existing.shares !== undefined || s.shares !== undefined)
-                                        ? (Number(existing.shares) || 0) + (Number(s.shares) || 0)
-                                        : undefined;
-                                    splitMap.set(uid, {
-                                        ...existing,
-                                        ...s,
-                                        userId: uid,
-                                        amount: Math.round(((Number(existing.amount) || 0) + (Number(s.amount) || 0)) * 100) / 100,
-                                        ...(combinedShares !== undefined ? { shares: combinedShares } : {})
-                                    });
-                                } else {
-                                    splitMap.set(uid, { ...s, userId: uid });
-                                }
-                            });
-                            newSplits = Array.from(splitMap.values());
+                            updatedTx.splits = consolidateSplitArray(tx.splits);
                         }
                     } else if (tx.splits && typeof tx.splits === 'object') {
                         if (sourceUserId in tx.splits) {
                             changed = true;
-                            newSplits = { ...tx.splits };
+                            const newSplits = { ...tx.splits };
                             const srcAmt = Number(newSplits[sourceUserId]) || 0;
                             const tgtAmt = Number(newSplits[targetUserId]) || 0;
                             newSplits[targetUserId] = Math.round((tgtAmt + srcAmt) * 100) / 100;
                             delete newSplits[sourceUserId];
+                            updatedTx.splits = newSplits;
+                        }
+                    }
+
+                    // SplitDetails (legacy / alternative split array)
+                    if (Array.isArray(tx.splitDetails)) {
+                        const hasSource = tx.splitDetails.some(s => s && s.userId === sourceUserId);
+                        if (hasSource) {
+                            changed = true;
+                            updatedTx.splitDetails = consolidateSplitArray(tx.splitDetails);
                         }
                     }
 
                     // SplitShares
-                    let newSplitShares = tx.splitShares;
                     if (tx.splitShares && typeof tx.splitShares === 'object' && sourceUserId in tx.splitShares) {
                         changed = true;
-                        newSplitShares = { ...tx.splitShares };
+                        const newSplitShares = { ...tx.splitShares };
                         const srcShare = Number(newSplitShares[sourceUserId]) || 0;
                         const tgtShare = Number(newSplitShares[targetUserId]) || 0;
                         newSplitShares[targetUserId] = tgtShare + srcShare;
                         delete newSplitShares[sourceUserId];
+                        updatedTx.splitShares = newSplitShares;
+                    }
+
+                    // Shares (alternative object format)
+                    if (tx.shares && typeof tx.shares === 'object' && sourceUserId in tx.shares) {
+                        changed = true;
+                        const newShares = { ...tx.shares };
+                        const srcShare = Number(newShares[sourceUserId]) || 0;
+                        const tgtShare = Number(newShares[targetUserId]) || 0;
+                        newShares[targetUserId] = tgtShare + srcShare;
+                        delete newShares[sourceUserId];
+                        updatedTx.shares = newShares;
                     }
 
                     if (changed) {
-                        updatedTransactions.push({
-                            ...tx,
-                            collectorId: newCollectorId,
-                            payerId: newPayerId,
-                            payers: newPayers,
-                            splits: newSplits,
-                            splitShares: newSplitShares,
-                            updatedAt: now
-                        });
+                        updatedTx.updatedAt = now;
+                        updatedTransactions.push(updatedTx);
                     } else {
                         updatedTransactions.push(tx);
                     }
                 }
             });
+
+            // Clean up localStorage cached member preferences if they pointed to source user
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    const keys = [
+                        'splitit_last_expense_singlepayer',
+                        'splitit_last_settlement_payer',
+                        'splitit_last_settlement_receiver'
+                    ];
+                    keys.forEach(k => {
+                        if (localStorage.getItem(k) === sourceUserId) {
+                            localStorage.setItem(k, targetUserId);
+                        }
+                    });
+                }
+            } catch (err) {
+                void err;
+            }
 
             return {
                 ...state,

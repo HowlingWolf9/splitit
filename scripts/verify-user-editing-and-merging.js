@@ -319,4 +319,154 @@ console.log('Test 8: Edge Cases and Guards');
     assert.strictEqual(missingUserResult, stateEdge, 'Missing user merge is a no-op');
 }
 
+// Test 9: MERGE_USERS with singular .share combining and participants deduplication
+console.log('Test 9: MERGE_USERS with singular .share combining and participants deduplication');
+{
+    const stateSingularShare = {
+        ...initialState,
+        users: [
+            { id: 'u_src', name: 'User 1' },
+            { id: 'u_tgt', name: 'User 2' },
+            { id: 'u_oth', name: 'User 3' }
+        ],
+        transactions: [
+            {
+                id: 'exp_singular',
+                type: 'EXPENSE',
+                amount: 100,
+                participants: ['u_src', 'u_tgt', 'u_oth'],
+                splits: [
+                    { userId: 'u_src', amount: 40, share: 2 },
+                    { userId: 'u_tgt', amount: 60, share: 3 }
+                ]
+            }
+        ]
+    };
+
+    const merged = expenseReducer(stateSingularShare, {
+        type: MERGE_USERS,
+        payload: { sourceUserId: 'u_src', targetUserId: 'u_tgt' }
+    });
+
+    const tx = merged.transactions.find(t => t.id === 'exp_singular');
+    assert.strictEqual(tx.splits.length, 1, 'Splits consolidated from 2 to 1');
+    assert.strictEqual(tx.splits[0].userId, 'u_tgt', 'Target userId assigned');
+    assert.strictEqual(tx.splits[0].amount, 100, 'Split amounts summed: 40 + 60 = 100');
+    assert.strictEqual(tx.splits[0].shares, 5, 'Singular shares combined: 2 + 3 = 5');
+    assert.strictEqual(tx.splits[0].share, undefined, 'Singular share property removed after normalization');
+    assert.deepStrictEqual(tx.participants, ['u_tgt', 'u_oth'], 'Participants array deduplicated and source replaced');
+}
+
+// Test 10: MERGE_USERS with legacy splitDetails and alternative shares object
+console.log('Test 10: MERGE_USERS with legacy splitDetails and alternative shares object');
+{
+    const stateLegacy = {
+        ...initialState,
+        users: [
+            { id: 'u_src', name: 'Source Legacy' },
+            { id: 'u_tgt', name: 'Target Legacy' }
+        ],
+        transactions: [
+            {
+                id: 'exp_legacy',
+                type: 'EXPENSE',
+                amount: 60,
+                splitDetails: [
+                    { userId: 'u_src', amount: 30, shares: 1 },
+                    { userId: 'u_tgt', amount: 30, shares: 1 }
+                ],
+                shares: {
+                    u_src: 2,
+                    u_tgt: 4
+                }
+            }
+        ]
+    };
+
+    const merged = expenseReducer(stateLegacy, {
+        type: MERGE_USERS,
+        payload: { sourceUserId: 'u_src', targetUserId: 'u_tgt' }
+    });
+
+    const tx = merged.transactions.find(t => t.id === 'exp_legacy');
+    assert.strictEqual(tx.splitDetails.length, 1, 'splitDetails consolidated');
+    assert.strictEqual(tx.splitDetails[0].amount, 60, 'splitDetails amounts combined');
+    assert.strictEqual(tx.splitDetails[0].shares, 2, 'splitDetails shares combined');
+    assert.strictEqual(tx.shares.u_src, undefined, 'Source removed from alternative shares');
+    assert.strictEqual(tx.shares.u_tgt, 6, 'Alternative shares combined: 2 + 4 = 6');
+}
+
+// Test 11: MERGE_USERS object cleanliness (no undefined keys injected)
+console.log('Test 11: MERGE_USERS object cleanliness');
+{
+    const stateClean = {
+        ...initialState,
+        users: [
+            { id: 'u_src', name: 'Source' },
+            { id: 'u_tgt', name: 'Target' }
+        ],
+        transactions: [
+            {
+                id: 'exp_plain',
+                type: 'EXPENSE',
+                amount: 50,
+                payerId: 'u_src'
+                // Deliberately no collectorId, splitShares, or payers
+            },
+            {
+                id: 'stl_plain',
+                type: 'SETTLEMENT',
+                amount: 20,
+                from: 'u_src',
+                to: 'u_ext'
+                // Deliberately no collectorId
+            }
+        ]
+    };
+
+    const merged = expenseReducer(stateClean, {
+        type: MERGE_USERS,
+        payload: { sourceUserId: 'u_src', targetUserId: 'u_tgt' }
+    });
+
+    const exp = merged.transactions.find(t => t.id === 'exp_plain');
+    assert.strictEqual('collectorId' in exp, false, 'collectorId not injected onto expense when absent');
+    assert.strictEqual('splitShares' in exp, false, 'splitShares not injected onto expense when absent');
+
+    const stl = merged.transactions.find(t => t.id === 'stl_plain');
+    assert.strictEqual('collectorId' in stl, false, 'collectorId not injected onto settlement when absent');
+}
+
+// Test 12: MERGE_USERS retaining source email when target email is null
+console.log('Test 12: MERGE_USERS retaining source email when target email is null');
+{
+    const stateEmailRetain = {
+        ...initialState,
+        users: [
+            { id: 'u_src', name: 'Source with Email', email: 'source@example.com' },
+            { id: 'u_tgt', name: 'Target without Email', email: null }
+        ]
+    };
+
+    // When options does not specify email (undefined)
+    const mergedDefault = expenseReducer(stateEmailRetain, {
+        type: MERGE_USERS,
+        payload: { sourceUserId: 'u_src', targetUserId: 'u_tgt' }
+    });
+    const tgtUserDefault = mergedDefault.users.find(u => u.id === 'u_tgt');
+    assert.strictEqual(tgtUserDefault.email, 'source@example.com', 'Preserved source email when target has no email');
+
+    // When options explicitly keeps email
+    const mergedExplicit = expenseReducer(stateEmailRetain, {
+        type: MERGE_USERS,
+        payload: {
+            sourceUserId: 'u_src',
+            targetUserId: 'u_tgt',
+            options: { email: 'source@example.com' }
+        }
+    });
+    const tgtUserExplicit = mergedExplicit.users.find(u => u.id === 'u_tgt');
+    assert.strictEqual(tgtUserExplicit.email, 'source@example.com', 'Preserved source email when explicitly requested');
+}
+
 console.log('--- ALL USER EDITING & MERGING TESTS PASSED SUCCESSFULLY! ---');

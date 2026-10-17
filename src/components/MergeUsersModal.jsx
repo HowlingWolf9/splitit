@@ -27,38 +27,78 @@ export default function MergeUsersModal({
 
     const users = useMemo(() => state.users || [], [state.users]);
 
-    // Initial source user
-    const [sourceUserId, setSourceUserId] = useState(() => {
-        if (initialSourceUserId && users.some(u => u.id === initialSourceUserId)) {
-            return initialSourceUserId;
-        }
-        return users[0]?.id || '';
-    });
+    // Resolve effective initial IDs ensuring source and target are distinct
+    const effectiveSourceId = (initialSourceUserId && users.some(u => u.id === initialSourceUserId))
+        ? initialSourceUserId
+        : (users[0]?.id || '');
 
-    // Initial target user
-    const [targetUserId, setTargetUserId] = useState(() => {
-        if (initialTargetUserId && users.some(u => u.id === initialTargetUserId && u.id !== initialSourceUserId)) {
-            return initialTargetUserId;
-        }
-        const other = users.find(u => u.id !== initialSourceUserId);
-        return other?.id || '';
-    });
+    const effectiveTargetId = (initialTargetUserId && users.some(u => u.id === initialTargetUserId && u.id !== effectiveSourceId))
+        ? initialTargetUserId
+        : (users.find(u => u.id !== effectiveSourceId)?.id || '');
+
+    const [sourceUserId, setSourceUserId] = useState(effectiveSourceId);
+    const [targetUserId, setTargetUserId] = useState(effectiveTargetId);
 
     const [nameChoice, setNameChoice] = useState('target'); // 'target', 'source', 'custom'
     const [customName, setCustomName] = useState('');
-    const [emailChoice, setEmailChoice] = useState('target'); // 'target', 'source', 'custom', 'none'
-    const [customEmail, setCustomEmail] = useState('');
-    const [confirmAcknowledged, setConfirmAcknowledged] = useState(false);
-    const [error, setError] = useState('');
 
     const sourceUser = useMemo(() => users.find(u => u.id === sourceUserId), [users, sourceUserId]);
     const targetUser = useMemo(() => users.find(u => u.id === targetUserId), [users, targetUserId]);
 
-    // Swap direction
+    // Automatically default emailChoice based on available emails
+    const getDefaultEmailChoice = (srcUser, tgtUser) => {
+        if (tgtUser?.email) return 'target';
+        if (srcUser?.email) return 'source';
+        return 'none';
+    };
+
+    const [emailChoice, setEmailChoice] = useState(() => {
+        const src = users.find(u => u.id === effectiveSourceId);
+        const tgt = users.find(u => u.id === effectiveTargetId);
+        return getDefaultEmailChoice(src, tgt);
+    });
+
+    const [customEmail, setCustomEmail] = useState('');
+    const [confirmAcknowledged, setConfirmAcknowledged] = useState(false);
+    const [error, setError] = useState('');
+
+    // Handle direction swap cleanly
     const handleSwapDirection = () => {
-        setSourceUserId(targetUserId);
-        setTargetUserId(sourceUserId);
+        const nextSrcId = targetUserId;
+        const nextTgtId = sourceUserId;
+        setSourceUserId(nextSrcId);
+        setTargetUserId(nextTgtId);
         setConfirmAcknowledged(false);
+
+        const nextSrc = users.find(u => u.id === nextSrcId);
+        const nextTgt = users.find(u => u.id === nextTgtId);
+        if (emailChoice === 'target' && !nextTgt?.email) {
+            setEmailChoice(nextSrc?.email ? 'source' : 'none');
+        } else if (emailChoice === 'source' && !nextSrc?.email) {
+            setEmailChoice(nextTgt?.email ? 'target' : 'none');
+        }
+    };
+
+    const handleSourceUserChange = (newSrcId) => {
+        setSourceUserId(newSrcId);
+        setConfirmAcknowledged(false);
+        const newSrc = users.find(u => u.id === newSrcId);
+        if (emailChoice === 'source' && !newSrc?.email) {
+            setEmailChoice(targetUser?.email ? 'target' : 'none');
+        } else if (emailChoice === 'none' && newSrc?.email && !targetUser?.email) {
+            setEmailChoice('source');
+        }
+    };
+
+    const handleTargetUserChange = (newTgtId) => {
+        setTargetUserId(newTgtId);
+        setConfirmAcknowledged(false);
+        const newTgt = users.find(u => u.id === newTgtId);
+        if (emailChoice === 'target' && !newTgt?.email) {
+            setEmailChoice(sourceUser?.email ? 'source' : 'none');
+        } else if (emailChoice === 'none' && newTgt?.email) {
+            setEmailChoice('target');
+        }
     };
 
     // Calculate real-time impact metrics
@@ -152,14 +192,23 @@ export default function MergeUsersModal({
         }
 
         // Resolve chosen email
-        let chosenEmail = targetUser?.email || null;
-        if (emailChoice === 'source') chosenEmail = sourceUser?.email || null;
-        if (emailChoice === 'none') chosenEmail = null;
-        if (emailChoice === 'custom') {
+        let chosenEmail = null;
+        if (emailChoice === 'target') chosenEmail = targetUser?.email || null;
+        else if (emailChoice === 'source') chosenEmail = sourceUser?.email || null;
+        else if (emailChoice === 'none') chosenEmail = null;
+        else if (emailChoice === 'custom') {
             const trimmed = customEmail.trim();
             if (trimmed && !EMAIL_REGEX.test(trimmed)) {
                 setError('Please enter a valid email address.');
                 return;
+            }
+            if (trimmed) {
+                const lower = trimmed.toLowerCase();
+                const duplicateOther = users.find(u => u.id !== sourceUserId && u.id !== targetUserId && u.email && u.email.toLowerCase().trim() === lower);
+                if (duplicateOther) {
+                    setError(`The email "${trimmed}" is already assigned to ${duplicateOther.name}.`);
+                    return;
+                }
             }
             chosenEmail = trimmed || null;
         }
@@ -263,10 +312,7 @@ export default function MergeUsersModal({
                             <select
                                 className="input"
                                 value={sourceUserId}
-                                onChange={(e) => {
-                                    setSourceUserId(e.target.value);
-                                    setConfirmAcknowledged(false);
-                                }}
+                                onChange={(e) => handleSourceUserChange(e.target.value)}
                             >
                                 {users.map(u => (
                                     <option key={u.id} value={u.id} disabled={u.id === targetUserId}>
@@ -304,10 +350,7 @@ export default function MergeUsersModal({
                             <select
                                 className="input"
                                 value={targetUserId}
-                                onChange={(e) => {
-                                    setTargetUserId(e.target.value);
-                                    setConfirmAcknowledged(false);
-                                }}
+                                onChange={(e) => handleTargetUserChange(e.target.value)}
                             >
                                 {users.map(u => (
                                     <option key={u.id} value={u.id} disabled={u.id === sourceUserId}>
@@ -443,28 +486,44 @@ export default function MergeUsersModal({
                             <label className="label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>
                                 Display Name to Keep
                             </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                                <input
-                                    type="radio"
-                                    name="nameChoice"
-                                    value="target"
-                                    checked={nameChoice === 'target'}
-                                    onChange={() => setNameChoice('target')}
-                                    style={{ accentColor: 'hsl(var(--color-accent))' }}
-                                />
-                                <span>Keep Target: <strong>{targetUser?.name}</strong></span>
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                                <input
-                                    type="radio"
-                                    name="nameChoice"
-                                    value="source"
-                                    checked={nameChoice === 'source'}
-                                    onChange={() => setNameChoice('source')}
-                                    style={{ accentColor: 'hsl(var(--color-accent))' }}
-                                />
-                                <span>Adopt Source: <strong>{sourceUser?.name}</strong></span>
-                            </label>
+                            {targetUser?.name && sourceUser?.name && targetUser.name.trim().toLowerCase() === sourceUser.name.trim().toLowerCase() ? (
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="radio"
+                                        name="nameChoice"
+                                        value="target"
+                                        checked={nameChoice === 'target' || nameChoice === 'source'}
+                                        onChange={() => setNameChoice('target')}
+                                        style={{ accentColor: 'hsl(var(--color-accent))' }}
+                                    />
+                                    <span>Keep Name: <strong>{targetUser.name}</strong></span>
+                                </label>
+                            ) : (
+                                <>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="radio"
+                                            name="nameChoice"
+                                            value="target"
+                                            checked={nameChoice === 'target'}
+                                            onChange={() => setNameChoice('target')}
+                                            style={{ accentColor: 'hsl(var(--color-accent))' }}
+                                        />
+                                        <span>Keep Target: <strong>{targetUser?.name}</strong></span>
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="radio"
+                                            name="nameChoice"
+                                            value="source"
+                                            checked={nameChoice === 'source'}
+                                            onChange={() => setNameChoice('source')}
+                                            style={{ accentColor: 'hsl(var(--color-accent))' }}
+                                        />
+                                        <span>Adopt Source: <strong>{sourceUser?.name}</strong></span>
+                                    </label>
+                                </>
+                            )}
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
                                 <input
                                     type="radio"
@@ -494,31 +553,47 @@ export default function MergeUsersModal({
                             <label className="label" style={{ fontSize: '0.82rem', fontWeight: 700 }}>
                                 Email to Keep
                             </label>
-                            {targetUser?.email && (
+                            {targetUser?.email && sourceUser?.email && targetUser.email.trim().toLowerCase() === sourceUser.email.trim().toLowerCase() ? (
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
                                     <input
                                         type="radio"
                                         name="emailChoice"
                                         value="target"
-                                        checked={emailChoice === 'target'}
+                                        checked={emailChoice === 'target' || emailChoice === 'source'}
                                         onChange={() => setEmailChoice('target')}
                                         style={{ accentColor: 'hsl(var(--color-accent))' }}
                                     />
-                                    <span>Target's Email: <strong>{targetUser.email}</strong></span>
+                                    <span>Keep Email: <strong>{targetUser.email}</strong></span>
                                 </label>
-                            )}
-                            {sourceUser?.email && (
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="radio"
-                                        name="emailChoice"
-                                        value="source"
-                                        checked={emailChoice === 'source'}
-                                        onChange={() => setEmailChoice('source')}
-                                        style={{ accentColor: 'hsl(var(--color-accent))' }}
-                                    />
-                                    <span>Source's Email: <strong>{sourceUser.email}</strong></span>
-                                </label>
+                            ) : (
+                                <>
+                                    {targetUser?.email && (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                                            <input
+                                                type="radio"
+                                                name="emailChoice"
+                                                value="target"
+                                                checked={emailChoice === 'target'}
+                                                onChange={() => setEmailChoice('target')}
+                                                style={{ accentColor: 'hsl(var(--color-accent))' }}
+                                            />
+                                            <span>Target's Email: <strong>{targetUser.email}</strong></span>
+                                        </label>
+                                    )}
+                                    {sourceUser?.email && (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                                            <input
+                                                type="radio"
+                                                name="emailChoice"
+                                                value="source"
+                                                checked={emailChoice === 'source'}
+                                                onChange={() => setEmailChoice('source')}
+                                                style={{ accentColor: 'hsl(var(--color-accent))' }}
+                                            />
+                                            <span>Source's Email: <strong>{sourceUser.email}</strong></span>
+                                        </label>
+                                    )}
+                                </>
                             )}
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
                                 <input

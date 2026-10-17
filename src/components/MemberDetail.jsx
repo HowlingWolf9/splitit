@@ -129,10 +129,32 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
 
     const handleCopyEmail = (e) => {
         e.stopPropagation();
-        if (member.email && navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(member.email);
+        if (!member.email) return;
+
+        const markCopied = () => {
             setCopiedEmail(true);
             setTimeout(() => setCopiedEmail(false), 2000);
+        };
+
+        if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(member.email)
+                .then(markCopied)
+                .catch(() => {
+                    // Fallback to execCommand if permission denied
+                    try {
+                        const input = document.createElement('textarea');
+                        input.value = member.email;
+                        input.style.position = 'fixed';
+                        input.style.opacity = '0';
+                        document.body.appendChild(input);
+                        input.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(input);
+                        markCopied();
+                    } catch {
+                        // Safe fallback without throwing unhandled rejection
+                    }
+                });
         }
     };
 

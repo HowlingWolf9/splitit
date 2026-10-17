@@ -3,6 +3,8 @@ import { useExpenses } from '../store/ExpenseContext';
 import { useNavigate } from 'react-router-dom';
 import { Users, ChevronRight, Search, UserPlus, UserMinus, Mail, X } from 'lucide-react';
 
+const EMAIL_REGEX = /^\S+@\S+\.\S+$/;
+
 export default function MembersView() {
     const navigate = useNavigate();
     const {
@@ -23,6 +25,7 @@ export default function MembersView() {
     const [newMemberName, setNewMemberName] = useState('');
     const [newMemberEmail, setNewMemberEmail] = useState('');
     const [showEmailInput, setShowEmailInput] = useState(false);
+    const [memberAddError, setMemberAddError] = useState('');
     const [selectedExistingUser, setSelectedExistingUser] = useState('');
 
     // Active users list based on scope
@@ -48,17 +51,23 @@ export default function MembersView() {
     }, [isGroupSelected, selectedGroupId, getGroupBalances, balances]);
 
     const handleAddMember = () => {
+        setMemberAddError('');
         const name = newMemberName.trim();
         const email = newMemberEmail.trim();
-        if (name) {
-            const newId = addUser(name, email || null);
-            if (isGroupSelected && !isNonGroup) {
-                addMemberToGroup(selectedGroupId, newId);
-            }
-            setNewMemberName('');
-            setNewMemberEmail('');
-            setShowEmailInput(false);
+        if (!name) return;
+
+        if (email && !EMAIL_REGEX.test(email)) {
+            setMemberAddError('Please enter a valid email address.');
+            return;
         }
+
+        const newId = addUser(name, email || null);
+        if (isGroupSelected && !isNonGroup) {
+            addMemberToGroup(selectedGroupId, newId);
+        }
+        setNewMemberName('');
+        setNewMemberEmail('');
+        setShowEmailInput(false);
     };
 
     const handleAddExistingUser = () => {
@@ -206,7 +215,10 @@ export default function MembersView() {
                                 type="text"
                                 placeholder={isGroupSelected && !isNonGroup ? `New member name for ${selectedGroup.name}...` : "New member name..."}
                                 value={newMemberName}
-                                onChange={(e) => setNewMemberName(e.target.value)}
+                                onChange={(e) => {
+                                    setNewMemberName(e.target.value);
+                                    if (memberAddError) setMemberAddError('');
+                                }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleAddMember();
                                 }}
@@ -249,7 +261,10 @@ export default function MembersView() {
                                         type="email"
                                         placeholder="Optional email address..."
                                         value={newMemberEmail}
-                                        onChange={(e) => setNewMemberEmail(e.target.value)}
+                                        onChange={(e) => {
+                                            setNewMemberEmail(e.target.value);
+                                            if (memberAddError) setMemberAddError('');
+                                        }}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') handleAddMember();
                                         }}
@@ -262,6 +277,7 @@ export default function MembersView() {
                                     onClick={() => {
                                         setNewMemberEmail('');
                                         setShowEmailInput(false);
+                                        setMemberAddError('');
                                     }}
                                     className="btn-icon"
                                     title="Hide email input"
@@ -269,6 +285,16 @@ export default function MembersView() {
                                 >
                                     <X size={15} />
                                 </button>
+                            </div>
+                        )}
+
+                        {memberAddError && (
+                            <div style={{
+                                color: 'hsl(var(--color-danger))',
+                                fontSize: '0.78rem',
+                                padding: '0.2rem 0.5rem'
+                            }}>
+                                {memberAddError}
                             </div>
                         )}
                     </div>
