@@ -1,7 +1,7 @@
 {
   "name": "expense-manager",
   "private": true,
-  "version": "1.7.16",
+  "version": "1.8.0",
   "description": "SplitIt - Modern Expense Manager for Group Expenses and Settlements",
   "author": "HowlingWolf9",
   "type": "module",
@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node scripts/verify-oauth-and-clean-state.js",
+    "test": "node scripts/verify-oauth-and-clean-state.js && node scripts/verify-user-editing-and-merging.js",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
     "build:pc": "vite build && tauri build",

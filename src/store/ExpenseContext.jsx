@@ -27,286 +27,33 @@ const CURRENCIES = {
     CAD: { symbol: 'C$', name: 'Canadian Dollar' },
 };
 
-// DEFAULT INITIAL USER (Clean slate for new users)
-const defaultUsers = [
-    { id: 'u_you', name: 'You', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
-];
+import {
+    defaultUsers,
+    initialState,
+    expenseReducer,
+    ADD_USER,
+    UPDATE_USER,
+    MERGE_USERS,
+    DELETE_USER,
+    ADD_GROUP,
+    UPDATE_GROUP,
+    DELETE_GROUP,
+    SET_SELECTED_GROUP,
+    SET_CURRENT_USER,
+    ADD_TRANSACTION,
+    UPDATE_TRANSACTION,
+    DELETE_TRANSACTION,
+    SET_CURRENCY,
+    IMPORT_DATA,
+    MERGE_SYNCED_DATA,
+    MERGE_GROUP_SYNC_DATA,
+    SET_GROUP_MEMBER_IDENTITY,
+    SET_GROUP_SYNC_CONFIG
+} from './expenseReducer.js';
 
-// STABLE INITIAL STATE WITH DELETED IDS TOMBSTONES
-const initialState = {
-    users: defaultUsers,
-    groups: [],
-    currentUserId: 'u_you',
-    transactions: [],
-    currency: 'INR',
-    selectedGroupId: null, // null = All Groups, or 'grp_...' or 'non-group'
-    deletedIds: {
-        groups: {},
-        members: {},
-        expenses: {},
-        settlements: {}
-    }
-};
-
-// ACTIONS
-const ADD_USER = 'ADD_USER';
-const DELETE_USER = 'DELETE_USER';
-const ADD_GROUP = 'ADD_GROUP';
-const UPDATE_GROUP = 'UPDATE_GROUP';
-const DELETE_GROUP = 'DELETE_GROUP';
-const SET_SELECTED_GROUP = 'SET_SELECTED_GROUP';
-const SET_CURRENT_USER = 'SET_CURRENT_USER';
-const ADD_TRANSACTION = 'ADD_TRANSACTION';
-const UPDATE_TRANSACTION = 'UPDATE_TRANSACTION';
-const DELETE_TRANSACTION = 'DELETE_TRANSACTION';
-const SET_CURRENCY = 'SET_CURRENCY';
-const IMPORT_DATA = 'IMPORT_DATA';
-const MERGE_SYNCED_DATA = 'MERGE_SYNCED_DATA';
-const MERGE_GROUP_SYNC_DATA = 'MERGE_GROUP_SYNC_DATA';
-const SET_GROUP_MEMBER_IDENTITY = 'SET_GROUP_MEMBER_IDENTITY';
-const SET_GROUP_SYNC_CONFIG = 'SET_GROUP_SYNC_CONFIG';
-
-// CONFLICT-FREE STATE MERGER UTILITY
+// CONFLICT-FREE STATE MERGER UTILITY & REDUCER EXPORTS
 // eslint-disable-next-line react-refresh/only-export-components
-export { mergeAppState, mergeGroupSyncPayload };
-
-
-// REDUCER
-function expenseReducer(state, action) {
-    switch (action.type) {
-        case SET_SELECTED_GROUP:
-            return {
-                ...state,
-                selectedGroupId: action.payload || null
-            };
-        case ADD_USER: {
-            const now = new Date().toISOString();
-            const newUser = {
-                ...action.payload,
-                createdAt: action.payload.createdAt || now,
-                updatedAt: action.payload.updatedAt || now
-            };
-            return {
-                ...state,
-                users: [...state.users, newUser],
-            };
-        }
-        case DELETE_USER: {
-            const now = new Date().toISOString();
-            const userId = action.payload;
-            return {
-                ...state,
-                users: state.users.filter(u => u.id !== userId),
-                // Remove user from groups and update group timestamp
-                groups: (state.groups || []).map(g => ({
-                    ...g,
-                    members: g.members.filter(mId => mId !== userId),
-                    updatedAt: now
-                })),
-                deletedIds: {
-                    ...state.deletedIds,
-                    members: { ...(state.deletedIds?.members || {}), [userId]: now }
-                },
-                currentUserId: state.currentUserId === userId
-                    ? (state.users.find(u => u.id !== userId)?.id || '')
-                    : state.currentUserId
-            };
-        }
-        case ADD_GROUP: {
-            const now = new Date().toISOString();
-            const newGroup = {
-                ...action.payload,
-                createdAt: action.payload.createdAt || now,
-                updatedAt: action.payload.updatedAt || now
-            };
-            return {
-                ...state,
-                groups: [...(state.groups || []), newGroup]
-            };
-        }
-        case UPDATE_GROUP: {
-            const now = new Date().toISOString();
-            return {
-                ...state,
-                groups: (state.groups || []).map(g =>
-                    g.id === action.payload.id ? { ...g, ...action.payload, updatedAt: now } : g
-                )
-            };
-        }
-        case DELETE_GROUP: {
-            const now = new Date().toISOString();
-            const groupIdToDelete = action.payload;
-            return {
-                ...state,
-                selectedGroupId: state.selectedGroupId === groupIdToDelete ? null : state.selectedGroupId,
-                groups: (state.groups || []).filter(g => g.id !== groupIdToDelete),
-                deletedIds: {
-                    ...state.deletedIds,
-                    groups: { ...(state.deletedIds?.groups || {}), [groupIdToDelete]: now }
-                },
-                // Reassign transactions of deleted group to non-group
-                transactions: (state.transactions || []).map(t =>
-                    t.groupId === groupIdToDelete ? { ...t, groupId: null, updatedAt: now } : t
-                )
-            };
-        }
-        case SET_CURRENT_USER:
-            return {
-                ...state,
-                currentUserId: action.payload
-            };
-        case ADD_TRANSACTION: {
-            const now = new Date().toISOString();
-            const newTx = {
-                ...action.payload,
-                createdAt: action.payload.createdAt || now,
-                updatedAt: action.payload.updatedAt || now
-            };
-            return {
-                ...state,
-                transactions: [newTx, ...state.transactions]
-            };
-        }
-        case UPDATE_TRANSACTION: {
-            const now = new Date().toISOString();
-            return {
-                ...state,
-                transactions: state.transactions.map(t =>
-                    t.id === action.payload.id
-                        ? {
-                            ...t,
-                            ...action.payload,
-                            createdAt: t.createdAt || now,
-                            updatedAt: now
-                        }
-                        : t
-                )
-            };
-        }
-        case DELETE_TRANSACTION: {
-            const now = new Date().toISOString();
-            const txId = action.payload;
-            const existingTx = (state.transactions || []).find(t => t.id === txId);
-            const isSettlement = existingTx?.type === 'SETTLEMENT';
-            return {
-                ...state,
-                transactions: state.transactions.filter(t => t.id !== txId),
-                deletedIds: {
-                    ...state.deletedIds,
-                    expenses: isSettlement
-                        ? (state.deletedIds?.expenses || {})
-                        : { ...(state.deletedIds?.expenses || {}), [txId]: now },
-                    settlements: isSettlement
-                        ? { ...(state.deletedIds?.settlements || {}), [txId]: now }
-                        : (state.deletedIds?.settlements || {})
-                }
-            };
-        }
-        case SET_CURRENCY:
-            return {
-                ...state,
-                currency: action.payload
-            };
-        case MERGE_SYNCED_DATA: {
-            const payload = action.payload || {};
-            const resolvedGroups = payload.groups || state.groups;
-            const targetGroupId = payload.selectedGroupId !== undefined ? payload.selectedGroupId : state.selectedGroupId;
-            const validSelectedGroupId = (
-                targetGroupId === 'non-group' ||
-                (Array.isArray(resolvedGroups) && resolvedGroups.some(g => g.id === targetGroupId))
-            ) ? targetGroupId : null;
-
-            const newState = {
-                ...state,
-                users: payload.users || state.users,
-                groups: resolvedGroups,
-                transactions: payload.transactions || state.transactions,
-                deletedIds: payload.deletedIds || state.deletedIds,
-                currency: payload.currency || state.currency,
-                currentUserId: payload.currentUserId || state.currentUserId,
-                selectedGroupId: validSelectedGroupId
-            };
-            delete newState.expenses;
-            delete newState.settlements;
-            return newState;
-        }
-        case MERGE_GROUP_SYNC_DATA: {
-            return mergeGroupSyncPayload(state, action.payload, action.myMemberId);
-        }
-        case SET_GROUP_MEMBER_IDENTITY: {
-            const { groupId, memberId } = action.payload;
-            const now = new Date().toISOString();
-            return {
-                ...state,
-                groups: (state.groups || []).map(g =>
-                    g.id === groupId ? { ...g, myMemberId: memberId, updatedAt: now } : g
-                )
-            };
-        }
-        case SET_GROUP_SYNC_CONFIG: {
-            const { groupId, isShared, syncSecret } = action.payload;
-            const now = new Date().toISOString();
-            return {
-                ...state,
-                groups: (state.groups || []).map(g =>
-                    g.id === groupId ? { ...g, isShared: !!isShared, syncSecret: syncSecret || g.syncSecret || null, updatedAt: now } : g
-                )
-            };
-        }
-        case IMPORT_DATA: {
-            const now = new Date().toISOString();
-            const importedUsers = (Array.isArray(action.payload.users) && action.payload.users.length > 0
-                ? action.payload.users
-                : (state.users && state.users.length > 0 ? state.users : defaultUsers)
-            ).map(u => ({
-                ...u,
-                updatedAt: u.updatedAt || u.createdAt || now
-            }));
-            const importedGroups = (Array.isArray(action.payload.groups) ? action.payload.groups : []).map(g => ({
-                ...g,
-                updatedAt: g.updatedAt || g.createdAt || now
-            }));
-            const importedTransactions = (Array.isArray(action.payload.transactions) ? action.payload.transactions : []).map(t => ({
-                ...t,
-                updatedAt: t.updatedAt || t.createdAt || now
-            }));
-            const importedDeletedIds = {
-                groups: {},
-                members: {},
-                expenses: {},
-                settlements: {},
-                ...(action.payload.deletedIds || {})
-            };
-
-            const targetGroupId = action.payload.selectedGroupId !== undefined ? action.payload.selectedGroupId : state.selectedGroupId;
-            const validSelectedGroupId = (
-                targetGroupId === 'non-group' ||
-                importedGroups.some(g => g.id === targetGroupId)
-            ) ? targetGroupId : null;
-
-            // Construct new clean state - purge legacy expenses/settlements to prevent ghost records
-            const newState = {
-                users: importedUsers,
-                groups: importedGroups,
-                transactions: importedTransactions,
-                deletedIds: importedDeletedIds,
-                currency: action.payload.currency || state.currency || 'INR',
-                currentUserId: action.payload.currentUserId || (importedUsers[0]?.id || 'u_you'),
-                selectedGroupId: validSelectedGroupId
-            };
-
-            try {
-                localStorage.setItem('expense_manager_data', JSON.stringify(newState));
-            } catch (e) {
-                console.error('Failed saving imported data to localStorage:', e);
-            }
-
-            return newState;
-        }
-        default:
-            return state;
-    }
-}
+export { mergeAppState, mergeGroupSyncPayload, expenseReducer, initialState, defaultUsers, ADD_USER, UPDATE_USER, MERGE_USERS, DELETE_USER };
 
 // CONTEXT
 const ExpenseContext = createContext(null);
@@ -1210,19 +957,34 @@ export function ExpenseProvider({ children }) {
         }
     }, [setGroupSyncStatus]);
 
-    const addUser = (name) => {
+    const addUser = (name, email = null) => {
         const id = generateId();
         const now = new Date().toISOString();
-        const newUser = { id, name, createdAt: now, updatedAt: now };
+        const trimmedEmail = (typeof email === 'string' && email.trim()) ? email.trim() : null;
+        const newUser = { id, name: (name || '').trim(), email: trimmedEmail, createdAt: now, updatedAt: now };
         stateRef.current = {
             ...stateRef.current,
             users: [...(stateRef.current.users || []), newUser]
         };
         dispatch({
             type: ADD_USER,
-            payload: { id, name }
+            payload: { id, name: (name || '').trim(), email: trimmedEmail }
         });
         return id;
+    };
+
+    const updateUser = (userId, updates = {}) => {
+        dispatch({
+            type: UPDATE_USER,
+            payload: { id: userId, ...updates }
+        });
+    };
+
+    const mergeUsers = (sourceUserId, targetUserId, options = {}) => {
+        dispatch({
+            type: MERGE_USERS,
+            payload: { sourceUserId, targetUserId, options }
+        });
     };
 
     const deleteUser = (userId) => {
@@ -1942,6 +1704,8 @@ export function ExpenseProvider({ children }) {
             addMemberToGroup,
             removeMemberFromGroup,
             addUser,
+            updateUser,
+            mergeUsers,
             deleteUser,
             addGroup,
             updateGroup,

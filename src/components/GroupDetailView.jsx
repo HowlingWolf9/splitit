@@ -5,7 +5,7 @@ import { useModalBackHandler } from '../utils/backButton';
 import {
     ArrowLeft, Plus, Settings, Trash2, Edit3, Scale, Receipt,
     Users, ArrowRight, CheckCircle2, Calendar, UserCheck, HandCoins,
-    Radio, Share2, Copy, Check, RefreshCw, ShieldCheck, User, X
+    Radio, Share2, Copy, Check, RefreshCw, ShieldCheck, User, X, Mail
 } from 'lucide-react';
 import GroupCardBanner from './GroupCardBanner';
 import GroupFormModal from './GroupFormModal';
@@ -668,6 +668,8 @@ export default function GroupDetailView() {
                             const isYou = mId === currentMemberId;
                             const bal = memberBalances[mId] || 0;
 
+                            const memberObj = (state.users || []).find(u => u.id === mId);
+
                             return (
                                 <div
                                     key={mId}
@@ -699,7 +701,20 @@ export default function GroupDetailView() {
                                             <div style={{ fontWeight: '700' }}>
                                                 {getUserName(mId)} {isYou && <span style={{ opacity: 0.6, fontSize: '0.82rem' }}>(You)</span>}
                                             </div>
-                                            <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))' }}>
+                                            {memberObj?.email && (
+                                                <div style={{
+                                                    fontSize: '0.78rem',
+                                                    color: 'hsl(var(--color-text-muted))',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.3rem',
+                                                    marginTop: '0.1rem'
+                                                }}>
+                                                    <Mail size={12} style={{ flexShrink: 0 }} />
+                                                    <span>{memberObj.email}</span>
+                                                </div>
+                                            )}
+                                            <div style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.1rem' }}>
                                                 {bal > 0.009 ? `Gets back ${formatMoney(bal)}` : bal < -0.009 ? `Owes ${formatMoney(Math.abs(bal))}` : 'Settled up'}
                                             </div>
                                         </div>

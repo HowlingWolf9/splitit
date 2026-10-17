@@ -1,13 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { ArrowLeft, User, ArrowRight, UserMinus } from 'lucide-react';
+import { ArrowLeft, User, ArrowRight, UserMinus, Mail, Edit3, GitMerge, Copy, Check } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import TransactionList from './TransactionList';
+import MemberEditModal from './MemberEditModal';
+import MergeUsersModal from './MergeUsersModal';
 
 export default function MemberDetail({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement }) {
     const { id } = useParams();
     const navigate = useNavigate();
     const { state, balances, deleteUser, selectedGroupId, selectedGroup, getGroupBalances } = useExpenses();
+
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showMergeModal, setShowMergeModal] = useState(false);
+    const [mergeTargetId, setMergeTargetId] = useState('');
+    const [copiedEmail, setCopiedEmail] = useState(false);
     
     const member = (state.users || []).find(u => u.id === id);
 
@@ -120,6 +127,15 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
         }
     };
 
+    const handleCopyEmail = (e) => {
+        e.stopPropagation();
+        if (member.email && navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(member.email);
+            setCopiedEmail(true);
+            setTimeout(() => setCopiedEmail(false), 2000);
+        }
+    };
+
     return (
         <div style={{ maxWidth: '800px', margin: '0 auto', display: 'grid', gap: '1.25rem' }}>
             {/* Header Card */}
@@ -151,6 +167,65 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                         </div>
                         <div>
                             <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{member.name}</h2>
+                            
+                            {/* Email Display or Assign Email Prompt */}
+                            {member.email ? (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.45rem',
+                                    marginTop: '0.2rem',
+                                    fontSize: '0.85rem'
+                                }}>
+                                    <Mail size={13} style={{ color: 'hsl(var(--color-text-muted))', flexShrink: 0 }} />
+                                    <a
+                                        href={`mailto:${member.email}`}
+                                        style={{
+                                            color: 'hsl(var(--color-accent))',
+                                            textDecoration: 'none',
+                                            fontWeight: 500
+                                        }}
+                                    >
+                                        {member.email}
+                                    </a>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyEmail}
+                                        className="btn-icon"
+                                        title="Copy email address"
+                                        style={{
+                                            padding: '0.2rem',
+                                            color: copiedEmail ? 'hsl(var(--color-success))' : 'hsl(var(--color-text-muted))',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {copiedEmail ? <Check size={14} /> : <Copy size={14} />}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ marginTop: '0.2rem' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEditModal(true)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: 0,
+                                            fontSize: '0.8rem',
+                                            color: 'hsl(var(--color-accent))',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.3rem',
+                                            textDecoration: 'underline'
+                                        }}
+                                    >
+                                        <Mail size={13} />
+                                        <span>+ Assign Email</span>
+                                    </button>
+                                </div>
+                            )}
+
                             <div style={{ fontSize: '0.85rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.2rem' }}>
                                 {memberTransactions.length} {memberTransactions.length === 1 ? 'transaction' : 'transactions'}
                             </div>
@@ -177,6 +252,51 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                             {!isPositive && !isNegative && formatMoney(0)}
                         </div>
                     </div>
+                </div>
+
+                {/* Member Action Bar */}
+                <div style={{
+                    display: 'flex',
+                    gap: '0.6rem',
+                    marginTop: '1.25rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px solid hsl(var(--color-border-subtle))',
+                    flexWrap: 'wrap',
+                    alignItems: 'center'
+                }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowEditModal(true)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                        <Edit3 size={15} />
+                        <span>Edit Member</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowMergeModal(true)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                        <GitMerge size={15} />
+                        <span>Merge Member</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleDeleteMember}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            color: 'hsl(var(--color-danger))',
+                            marginLeft: 'auto'
+                        }}
+                    >
+                        <UserMinus size={15} />
+                        <span>Delete Member</span>
+                    </button>
                 </div>
             </div>
 
@@ -262,17 +382,34 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                 </div>
             )}
 
-            {/* Delete Member Option */}
-            <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '0.5rem' }}>
-                <button
-                    type="button"
-                    onClick={handleDeleteMember}
-                    className="btn btn-danger btn-sm"
-                >
-                    <UserMinus size={15} />
-                    <span>Delete Member</span>
-                </button>
-            </div>
+            {/* Modals */}
+            {showEditModal && (
+                <MemberEditModal
+                    member={member}
+                    onClose={() => setShowEditModal(false)}
+                    onOpenMerge={(mem, dup) => {
+                        setShowEditModal(false);
+                        setMergeTargetId(dup.id);
+                        setShowMergeModal(true);
+                    }}
+                />
+            )}
+
+            {showMergeModal && (
+                <MergeUsersModal
+                    initialSourceUserId={member.id}
+                    initialTargetUserId={mergeTargetId || ''}
+                    onClose={() => {
+                        setShowMergeModal(false);
+                        setMergeTargetId('');
+                    }}
+                    onSuccess={(targetId) => {
+                        setShowMergeModal(false);
+                        setMergeTargetId('');
+                        navigate(`/members/${targetId}`);
+                    }}
+                />
+            )}
         </div>
     );
 }

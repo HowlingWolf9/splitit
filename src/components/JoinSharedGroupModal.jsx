@@ -73,10 +73,14 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                     syncSecret: parsed.syncSecret
                 });
 
-                // Default selection: pick first member or current user if name matches
+                // Default selection: auto-match by email first, then fallback to name match, or first member
                 const members = result.payload.members || [];
-                const currentUserName = state.users.find(u => u.id === state.currentUserId)?.name?.toLowerCase();
-                const matchedMember = members.find(m => m.name.toLowerCase() === currentUserName);
+                const currentUser = (state.users || []).find(u => u.id === state.currentUserId);
+                const currentUserEmail = currentUser?.email?.toLowerCase()?.trim();
+                const currentUserName = currentUser?.name?.toLowerCase()?.trim();
+
+                const matchedMember = (currentUserEmail && members.find(m => m.email && m.email.toLowerCase().trim() === currentUserEmail))
+                    || (currentUserName && members.find(m => m.name && m.name.toLowerCase().trim() === currentUserName));
 
                 if (matchedMember) {
                     setSelectedMemberId(matchedMember.id);
@@ -112,11 +116,13 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                     setIsJoining(false);
                     return;
                 }
-                const newId = addUser(trimmed);
+                const currentUser = (state.users || []).find(u => u.id === state.currentUserId);
+                const newId = addUser(trimmed, currentUser?.email || null);
                 memberIdToUse = newId;
                 newMemberObj = {
                     id: newId,
                     name: trimmed,
+                    email: currentUser?.email || null,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
@@ -342,11 +348,16 @@ export default function JoinSharedGroupModal({ onClose, onSuccess }) {
                                                     : 'hsl(var(--color-surface))'
                                             }}
                                         >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                 <User size={16} style={{ color: isSelected ? 'hsl(var(--color-accent))' : 'hsl(var(--color-text-muted))' }} />
                                                 <span style={{ fontWeight: isSelected ? 700 : 500, fontSize: '0.9rem' }}>
                                                     {member.name}
                                                 </span>
+                                                {member.email && (
+                                                    <span style={{ fontSize: '0.78rem', color: 'hsl(var(--color-text-muted))' }}>
+                                                        ({member.email})
+                                                    </span>
+                                                )}
                                             </div>
                                             {isSelected && <CheckCircle2 size={18} style={{ color: 'hsl(var(--color-accent))' }} />}
                                         </div>

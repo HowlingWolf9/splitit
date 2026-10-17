@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, ChevronRight, Search, UserPlus, UserMinus } from 'lucide-react';
+import { Users, ChevronRight, Search, UserPlus, UserMinus, Mail, X } from 'lucide-react';
 
 export default function MembersView() {
     const navigate = useNavigate();
@@ -21,6 +21,8 @@ export default function MembersView() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [newMemberName, setNewMemberName] = useState('');
+    const [newMemberEmail, setNewMemberEmail] = useState('');
+    const [showEmailInput, setShowEmailInput] = useState(false);
     const [selectedExistingUser, setSelectedExistingUser] = useState('');
 
     // Active users list based on scope
@@ -47,12 +49,15 @@ export default function MembersView() {
 
     const handleAddMember = () => {
         const name = newMemberName.trim();
+        const email = newMemberEmail.trim();
         if (name) {
-            const newId = addUser(name);
+            const newId = addUser(name, email || null);
             if (isGroupSelected && !isNonGroup) {
                 addMemberToGroup(selectedGroupId, newId);
             }
             setNewMemberName('');
+            setNewMemberEmail('');
+            setShowEmailInput(false);
         }
     };
 
@@ -84,7 +89,10 @@ export default function MembersView() {
 
     const filteredUsers = scopedUsers.filter(user => {
         if (!searchQuery) return true;
-        return user.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const q = searchQuery.toLowerCase().trim();
+        const nameMatch = user.name && user.name.toLowerCase().includes(q);
+        const emailMatch = user.email && user.email.toLowerCase().includes(q);
+        return Boolean(nameMatch || emailMatch);
     });
 
     const sortedUsers = [...filteredUsers].sort((a, b) => a.name.localeCompare(b.name));
@@ -192,27 +200,77 @@ export default function MembersView() {
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <input
-                            type="text"
-                            placeholder={isGroupSelected && !isNonGroup ? `New member name for ${selectedGroup.name}...` : "New member name..."}
-                            value={newMemberName}
-                            onChange={(e) => setNewMemberName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleAddMember();
-                            }}
-                            className="input"
-                            style={{ flex: 1, padding: '0.45rem 0.75rem', fontSize: '0.84rem' }}
-                        />
-                        <button
-                            type="button"
-                            onClick={handleAddMember}
-                            className="btn btn-primary btn-sm"
-                            disabled={!newMemberName.trim()}
-                        >
-                            <UserPlus size={15} />
-                            <span>Add</span>
-                        </button>
+                    <div style={{ display: 'grid', gap: '0.45rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <input
+                                type="text"
+                                placeholder={isGroupSelected && !isNonGroup ? `New member name for ${selectedGroup.name}...` : "New member name..."}
+                                value={newMemberName}
+                                onChange={(e) => setNewMemberName(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleAddMember();
+                                }}
+                                className="input"
+                                style={{ flex: 1, padding: '0.45rem 0.75rem', fontSize: '0.84rem' }}
+                            />
+                            {!showEmailInput && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEmailInput(true)}
+                                    className="btn btn-secondary btn-sm"
+                                    title="Add email address for this member"
+                                    style={{ padding: '0.45rem 0.65rem' }}
+                                >
+                                    <Mail size={15} />
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handleAddMember}
+                                className="btn btn-primary btn-sm"
+                                disabled={!newMemberName.trim()}
+                            >
+                                <UserPlus size={15} />
+                                <span>Add</span>
+                            </button>
+                        </div>
+
+                        {showEmailInput && (
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <div style={{ position: 'relative', flex: 1 }}>
+                                    <Mail size={14} style={{
+                                        position: 'absolute',
+                                        left: '0.65rem',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        color: 'hsl(var(--color-text-muted))'
+                                    }} />
+                                    <input
+                                        type="email"
+                                        placeholder="Optional email address..."
+                                        value={newMemberEmail}
+                                        onChange={(e) => setNewMemberEmail(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleAddMember();
+                                        }}
+                                        className="input"
+                                        style={{ paddingLeft: '2rem', padding: '0.4rem 0.65rem 0.4rem 2rem', fontSize: '0.82rem', width: '100%' }}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setNewMemberEmail('');
+                                        setShowEmailInput(false);
+                                    }}
+                                    className="btn-icon"
+                                    title="Hide email input"
+                                    style={{ color: 'hsl(var(--color-text-muted))' }}
+                                >
+                                    <X size={15} />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -285,6 +343,22 @@ export default function MembersView() {
                                                 </span>
                                             )}
                                         </div>
+                                        {user.email && (
+                                            <div style={{
+                                                fontSize: '0.78rem',
+                                                color: 'hsl(var(--color-text-muted))',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.3rem',
+                                                marginTop: '0.1rem',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
+                                            }}>
+                                                <Mail size={12} style={{ flexShrink: 0 }} />
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</span>
+                                            </div>
+                                        )}
                                         <div style={{ fontSize: '0.8rem', color: 'hsl(var(--color-text-muted))', marginTop: '0.1rem' }}>
                                             {stats.expenseCount} {stats.expenseCount === 1 ? 'expense' : 'expenses'} {isGroupSelected ? 'in group' : 'overall'}
                                         </div>
