@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
 import { ArrowRight, Edit2, Receipt, HandCoins } from 'lucide-react';
 
@@ -11,7 +11,17 @@ export default function TransactionList({
     showMemberShare = false
 }) {
     const { state } = useExpenses();
-    const transactions = transactionsProp || state.transactions || [];
+    const transactions = useMemo(() => {
+        if (transactionsProp) return transactionsProp;
+        return [...(state.transactions || [])].sort((a, b) => {
+            const timeA = new Date(a.date || a.createdAt || 0).getTime();
+            const timeB = new Date(b.date || b.createdAt || 0).getTime();
+            if (timeB !== timeA) return timeB - timeA;
+            const updA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const updB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            return updB - updA;
+        });
+    }, [transactionsProp, state.transactions]);
 
     const formatMoney = (val) => {
         return new Intl.NumberFormat('en-US', {

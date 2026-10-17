@@ -58,6 +58,15 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
         return true;
     });
 
+    const sortByDateDesc = (a, b) => {
+        const timeA = new Date(a.date || a.createdAt || 0).getTime();
+        const timeB = new Date(b.date || b.createdAt || 0).getTime();
+        if (timeB !== timeA) return timeB - timeA;
+        const updA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const updB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return updB - updA;
+    };
+
     const memberTransactions = transactionsInScope.filter(t => {
         if (t.type === 'EXPENSE') {
             const isPayer = t.payers.some(p => p.userId === member.id);
@@ -68,7 +77,7 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
             return t.from === member.id || t.to === member.id;
         }
         return false;
-    });
+    }).sort(sortByDateDesc);
 
     const expenses = memberTransactions.filter(t => t.type === 'EXPENSE');
     const settlements = memberTransactions.filter(t => t.type === 'SETTLEMENT');
@@ -124,8 +133,8 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
         }
     });
 
-    const owes = pairwiseBalances.filter(p => p.balance < 0);
-    const isOwed = pairwiseBalances.filter(p => p.balance > 0);
+    const owes = pairwiseBalances.filter(p => p.balance < 0).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
+    const isOwed = pairwiseBalances.filter(p => p.balance > 0).sort((a, b) => b.balance - a.balance);
 
     const handleDeleteMember = () => {
         if (window.confirm(`Delete ${member.name} from the system? This action cannot be undone.`)) {

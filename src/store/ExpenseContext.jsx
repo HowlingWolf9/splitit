@@ -1663,13 +1663,24 @@ export function ExpenseProvider({ children }) {
         return (state.groups || []).find(g => g.id === state.selectedGroupId) || null;
     }, [state.selectedGroupId, state.groups, state.users]);
 
-    // Filtered Transactions for Active Group
+    // Filtered Transactions for Active Group (sorted chronologically descending)
     const filteredTransactions = useMemo(() => {
-        if (!state.selectedGroupId) return state.transactions || [];
-        if (state.selectedGroupId === 'non-group') {
-            return (state.transactions || []).filter(t => !t.groupId || t.groupId === 'non-group');
+        let txs = state.transactions || [];
+        if (state.selectedGroupId) {
+            if (state.selectedGroupId === 'non-group') {
+                txs = txs.filter(t => !t.groupId || t.groupId === 'non-group');
+            } else {
+                txs = txs.filter(t => t.groupId === state.selectedGroupId);
+            }
         }
-        return (state.transactions || []).filter(t => t.groupId === state.selectedGroupId);
+        return [...txs].sort((a, b) => {
+            const timeA = new Date(a.date || a.createdAt || 0).getTime();
+            const timeB = new Date(b.date || b.createdAt || 0).getTime();
+            if (timeB !== timeA) return timeB - timeA;
+            const updA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const updB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            return updB - updA;
+        });
     }, [state.selectedGroupId, state.transactions]);
 
     // Current User Summary for Active Group or Overall

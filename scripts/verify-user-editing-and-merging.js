@@ -469,4 +469,39 @@ console.log('Test 12: MERGE_USERS retaining source email when target email is nu
     assert.strictEqual(tgtUserExplicit.email, 'source@example.com', 'Preserved source email when explicitly requested');
 }
 
+// Test 13: Chronological transaction sorting by date descending
+console.log('Test 13: Chronological transaction sorting by date descending');
+{
+    const sortByDateDesc = (a, b) => {
+        const timeA = new Date(a.date || a.createdAt || 0).getTime();
+        const timeB = new Date(b.date || b.createdAt || 0).getTime();
+        if (timeB !== timeA) return timeB - timeA;
+        const updA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const updB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return updB - updA;
+    };
+
+    const rawTxs = [
+        { id: 'tx1', date: '2026-10-12T12:25:00', amount: 309.10 },
+        { id: 'tx2', date: '2026-10-13T22:51:00', amount: 49.00 },
+        { id: 'tx3', date: '2026-10-13T20:20:00', amount: 1200.00 },
+        { id: 'tx4', date: '2026-10-12T15:32:00', amount: 90.00 },
+        { id: 'tx5', date: '2026-10-07T14:57:00', amount: 65.00 },
+        { id: 'tx6', date: '2026-10-07T08:39:00', amount: 30.00 },
+        { id: 'tx7', date: '2026-10-06T22:31:00', amount: 40.00 },
+        { id: 'tx8', date: '2026-10-06T17:42:00', amount: 594.00 }
+    ];
+
+    const sorted = [...rawTxs].sort(sortByDateDesc);
+    const expectedOrder = ['tx2', 'tx3', 'tx4', 'tx1', 'tx5', 'tx6', 'tx7', 'tx8'];
+    assert.deepStrictEqual(sorted.map(t => t.id), expectedOrder, 'Transactions sorted by date descending properly');
+
+    // Tie breaker test
+    const ties = [
+        { id: 't_old', date: '2026-10-10T10:00:00', updatedAt: '2026-10-10T10:00:00Z' },
+        { id: 't_new', date: '2026-10-10T10:00:00', updatedAt: '2026-10-10T12:00:00Z' }
+    ].sort(sortByDateDesc);
+    assert.strictEqual(ties[0].id, 't_new', 'Tiebreaker favors newer updatedAt');
+}
+
 console.log('--- ALL USER EDITING & MERGING TESTS PASSED SUCCESSFULLY! ---');

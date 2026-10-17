@@ -77,10 +77,19 @@ export default function GroupDetailView() {
         return getGroupBalances(group.id);
     }, [group, getGroupBalances]);
 
-    // Group transactions
+    // Group transactions (sorted chronologically descending: newest first)
     const groupTransactions = useMemo(() => {
         if (!group) return [];
-        return (state.transactions || []).filter(t => t.groupId === group.id);
+        return (state.transactions || [])
+            .filter(t => t.groupId === group.id)
+            .sort((a, b) => {
+                const timeA = new Date(a.date || a.createdAt || 0).getTime();
+                const timeB = new Date(b.date || b.createdAt || 0).getTime();
+                if (timeB !== timeA) return timeB - timeA;
+                const updA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                const updB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                return updB - updA;
+            });
     }, [group, state.transactions]);
 
     const groupExpenses = useMemo(() => {
