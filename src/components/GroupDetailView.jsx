@@ -471,40 +471,10 @@ export default function GroupDetailView() {
                                     <Plus size={18} />
                                     Add First Expense
                                 </button>
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary"
-                                    onClick={() => setSettleTarget({
-                                        from: null,
-                                        to: null,
-                                        amount: null,
-                                        groupId: group.id
-                                    })}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                                >
-                                    <HandCoins size={16} />
-                                    <span>Record Settlement</span>
-                                </button>
                             </div>
                         </div>
                     ) : (
                         <div style={{ display: 'grid', gap: '0.75rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.25rem' }}>
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => setSettleTarget({
-                                        from: null,
-                                        to: null,
-                                        amount: null,
-                                        groupId: group.id
-                                    })}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                                >
-                                    <HandCoins size={14} />
-                                    <span>Record Settlement</span>
-                                </button>
-                            </div>
                             {groupTransactions.map(tx => {
                                 const isExpense = tx.type === 'EXPENSE';
                                 const myPaid = isExpense
@@ -602,25 +572,11 @@ export default function GroupDetailView() {
                 <div style={{ display: 'grid', gap: '1.5rem' }}>
                     {/* Simplified Settlements */}
                     <div className="card">
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ marginBottom: '1rem' }}>
                             <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <Scale size={18} />
                                 Suggested Group Settlements
                             </h3>
-                            <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => setSettleTarget({
-                                    from: null,
-                                    to: null,
-                                    amount: null,
-                                    groupId: group.id
-                                })}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                            >
-                                <HandCoins size={14} />
-                                <span>Record Settlement</span>
-                            </button>
                         </div>
 
                         {groupDebtsInfo.allSettlements?.length === 0 ? (

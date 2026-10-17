@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useExpenses } from '../store/ExpenseContext';
-import { Search, History, Plus, HandCoins } from 'lucide-react';
+import { Search, History, Plus } from 'lucide-react';
 import TransactionList from './TransactionList';
 import ExpenseForm from './ExpenseForm';
 import SettlementForm from './SettlementForm';
@@ -13,12 +13,10 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
     const [editingExpense, setEditingExpense] = useState(null);
     const [editingSettlement, setEditingSettlement] = useState(null);
     const [isAddingExpense, setIsAddingExpense] = useState(false);
-    const [isAddingSettlement, setIsAddingSettlement] = useState(false);
 
     useModalBackHandler(!!editingExpense, () => setEditingExpense(null));
     useModalBackHandler(!!editingSettlement, () => setEditingSettlement(null));
     useModalBackHandler(isAddingExpense, () => setIsAddingExpense(false));
-    useModalBackHandler(isAddingSettlement, () => setIsAddingSettlement(false));
 
     const groupFilter = selectedGroupId === 'non-group' ? 'NON_GROUP' : (selectedGroupId || 'ALL');
 
@@ -102,21 +100,11 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    justifyContent: 'flex-end',
                     gap: '0.65rem',
                     marginBottom: '0.85rem',
                     flexWrap: 'wrap'
                 }}>
-                    <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setIsAddingSettlement(true)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                    >
-                        <HandCoins size={15} />
-                        <span>Record Settlement</span>
-                    </button>
-
                     <select
                         className="input"
                         value={sortBy}
@@ -235,25 +223,6 @@ export default function AllTransactionsView({ onViewTransaction, onViewSettlemen
                         <ExpenseForm
                             onCancel={() => setIsAddingExpense(false)}
                             onSuccess={() => setIsAddingExpense(false)}
-                            defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* Quick Record Settlement Modal */}
-            {isAddingSettlement && (
-                <div
-                    className="modal-overlay"
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) setIsAddingSettlement(false);
-                    }}
-                >
-                    <div className="modal-content" style={{ maxWidth: '600px' }}>
-                        <div className="bottom-sheet-handle" />
-                        <SettlementForm
-                            onCancel={() => setIsAddingSettlement(false)}
-                            onSuccess={() => setIsAddingSettlement(false)}
                             defaultGroupId={selectedGroupId === 'non-group' ? null : selectedGroupId}
                         />
                     </div>

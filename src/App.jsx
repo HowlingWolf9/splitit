@@ -38,7 +38,7 @@ import {
     X
 } from 'lucide-react';
 
-function DashboardView({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement, onAddSettlement }) {
+function DashboardView({ onEditTransaction, onViewTransaction, onEditSettlement, onViewSettlement }) {
     const { filteredTransactions, selectedGroup } = useExpenses();
     return (
         <div style={{ display: 'grid', gap: '1.5rem', width: '100%', minWidth: 0 }}>
@@ -53,17 +53,6 @@ function DashboardView({ onEditTransaction, onViewTransaction, onEditSettlement,
                             Latest expenses and settlements
                         </p>
                     </div>
-                    {onAddSettlement && (
-                        <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={onAddSettlement}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                        >
-                            <HandCoins size={15} />
-                            <span>Record Settlement</span>
-                        </button>
-                    )}
                 </div>
                 <TransactionList
                     transactions={filteredTransactions}
@@ -710,8 +699,8 @@ function ExpenseApp() {
                 {showScopeBanner && <div className="print-hide"><GroupScopeBanner /></div>}
 
                 <Routes>
-                    <Route path="/" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} onAddSettlement={() => setIsAddingSettlement(true)} />} />
-                    <Route path="/dashboard" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} onAddSettlement={() => setIsAddingSettlement(true)} />} />
+                    <Route path="/" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} />} />
+                    <Route path="/dashboard" element={<DashboardView onEditTransaction={handleEditTransaction} onViewTransaction={handleViewTransaction} onEditSettlement={handleEditSettlement} onViewSettlement={handleViewSettlement} />} />
                     <Route path="/groups" element={<GroupsView />} />
                     <Route path="/groups/:id" element={<GroupDetailView />} />
                     <Route path="/expenses" element={<ExpenseListView onViewTransaction={handleViewTransaction} onEditTransaction={handleEditTransaction} />} />

@@ -304,22 +304,6 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
                 }}>
                     <button
                         type="button"
-                        onClick={() => {
-                            setSettleTarget({
-                                from: isNegative ? member.id : null,
-                                to: isPositive ? member.id : null,
-                                amount: Math.abs(balance) > 0.009 ? Math.abs(balance) : null,
-                                groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
-                            });
-                        }}
-                        className="btn btn-secondary btn-sm"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                    >
-                        <HandCoins size={15} />
-                        <span>Record Settlement</span>
-                    </button>
-                    <button
-                        type="button"
                         onClick={() => setShowEditModal(true)}
                         className="btn btn-secondary btn-sm"
                         style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
@@ -463,24 +447,10 @@ export default function MemberDetail({ onEditTransaction, onViewTransaction, onE
             {/* Settlements */}
             {settlements.length > 0 && (
                 <div className="card">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ marginBottom: '1rem' }}>
                         <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
                             Settlements ({settlements.length})
                         </h3>
-                        <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setSettleTarget({
-                                from: isNegative ? member.id : null,
-                                to: isPositive ? member.id : null,
-                                amount: null,
-                                groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
-                            })}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                        >
-                            <HandCoins size={14} />
-                            <span>Record Settlement</span>
-                        </button>
                     </div>
                     <TransactionList
                         transactions={settlements}

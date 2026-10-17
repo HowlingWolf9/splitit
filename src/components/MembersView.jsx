@@ -164,21 +164,6 @@ export default function MembersView() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                        <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setSettleTarget({
-                                from: null,
-                                to: null,
-                                amount: null,
-                                groupId: isGroupSelected && !isNonGroup ? selectedGroupId : null
-                            })}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                        >
-                            <HandCoins size={15} />
-                            <span>Record Settlement</span>
-                        </button>
-
                         {/* Search */}
                         <div style={{ position: 'relative', minWidth: '220px' }}>
                             <Search size={15} style={{
